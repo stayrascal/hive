@@ -1764,6 +1764,8 @@ public class HiveConf extends Configuration {
         "The parent node in ZooKeeper used by HiveServer2 when supporting dynamic service discovery."),
     HIVE_SQL_HISTORY_ZOOKEEPER_NAMESPACE("beeline.sql.zookeeper.namespace", "beelinesql",
             "The parent node in ZooKeeper used by record sql history when supporting dynamic service discovery."),
+    OPERATION_ZOOKEEPER_NAMESPACE("operation.zookeeper.namespace", "operations",
+            "The parent node in ZooKeeper used by record operation id when supporting dynamic service discovery."),
     // HiveServer2 global init file location
     HIVE_SERVER2_GLOBAL_INIT_FILE_LOCATION("hive.server2.global.init.file.location", "${env:HIVE_CONF_DIR}",
         "Either the location of a HS2 global init file or a directory containing a .hiverc file. If the \n" +

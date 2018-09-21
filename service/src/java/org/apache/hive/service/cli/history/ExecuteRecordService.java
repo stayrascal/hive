@@ -1,14 +1,18 @@
 package org.apache.hive.service.cli.history;
 
 
-import org.apache.curator.framework.recipes.nodes.PersistentEphemeralNode;
-
 import java.util.Optional;
 
 public interface ExecuteRecordService {
-    ExecuteRecord saveExecuteRecord(String sql);
+  ExecuteRecord createRecordNode(String sql);
 
-    ExecuteRecord updateExecuteRecord(PersistentEphemeralNode node, ExecuteRecord record);
+  ExecuteRecord updateRecordNode(ExecuteRecord record);
 
-    Optional<ExecuteRecord> getExecuteRecordBySql(String sql);
+  Optional<ExecuteRecord> getExecuteRecordBySql(String sql);
+
+  Optional<String> getSqlByOperationId(String operationId);
+
+  Optional<ExecuteRecord> getRecordByOperationId(String operationId);
+
+  void deleteRecordNode(String sqlId);
 }

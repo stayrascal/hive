@@ -18,6 +18,7 @@
 
 package org.apache.hive.service.cli.thrift;
 
+import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -36,12 +37,14 @@ import org.apache.hive.service.cli.HiveSQLException;
 import org.apache.hive.service.cli.OperationHandle;
 import org.apache.hive.service.cli.OperationState;
 import org.apache.hive.service.cli.OperationStatus;
+import org.apache.hive.service.cli.OperationType;
 import org.apache.hive.service.cli.RowSet;
 import org.apache.hive.service.cli.SessionHandle;
 import org.apache.hive.service.cli.TableSchema;
 import org.apache.hive.service.cli.history.ExecuteRecord;
 import org.apache.hive.service.cli.history.ExecuteRecordService;
 import org.apache.hive.service.cli.history.ZkExecuteRecordService;
+import org.apache.hive.service.cli.history.exception.NotFoundException;
 import org.apache.hive.service.cli.session.SessionManager;
 import org.apache.hive.service.server.HiveServer2;
 import org.apache.thrift.TException;
@@ -481,37 +484,66 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
     return resp;
   }
 
-  @Override
-  public TExecuteStatementResp ExecuteStatement(TExecuteStatementReq req) throws TException {
+  public TExecuteStatementResp executeNewStatement(TExecuteStatementReq req) {
     TExecuteStatementResp resp = new TExecuteStatementResp();
     try {
       SessionHandle sessionHandle = new SessionHandle(req.getSessionHandle());
       String statement = req.getStatement();
 
-      Optional<ExecuteRecord> record = executeRecordService.getExecuteRecordBySql(statement);
-      if (record.isPresent()) {
-        // TODO will try to fetch status of this job
-        if (record.get().getStatus().equals(OperationState.FINISHED)) {
-          LOG.info("Will try to fetch result from output file");
-        } else {
-          LOG.info("Will fetch result");
-        }
-      } else {
-        ExecuteRecord executeRecord = executeRecordService.saveExecuteRecord(statement);
+      ExecuteRecord executeRecord = executeRecordService.createRecordNode(statement);
 
-        Map<String, String> confOverlay = req.getConfOverlay();
-        Boolean runAsync = req.isRunAsync();
-        OperationHandle operationHandle = runAsync ?
-                cliService.executeStatementAsync(sessionHandle, statement, confOverlay)
-                : cliService.executeStatement(sessionHandle, statement, confOverlay);
-        resp.setOperationHandle(operationHandle.toTOperationHandle());
-        resp.setStatus(OK_STATUS);
-      }
+      Map<String, String> confOverlay = req.getConfOverlay();
+      Boolean runAsync = req.isRunAsync();
+      OperationHandle operationHandle = runAsync ?
+              cliService.executeStatementAsync(sessionHandle, statement, confOverlay)
+              : cliService.executeStatement(sessionHandle, statement, confOverlay);
+
+      TOperationHandle tOperationHandle = operationHandle.toTOperationHandle();
+      resp.setOperationHandle(tOperationHandle);
+      resp.setStatus(OK_STATUS);
+
+      executeRecord.setStatus(OperationState.RUNNING);
+      executeRecord.setOperationId(DigestUtils.md5Hex(tOperationHandle.getOperationId().toString()).toUpperCase());
+      executeRecordService.updateRecordNode(executeRecord);
+
     } catch (Exception e) {
       LOG.warn("Error executing statement: ", e);
       resp.setStatus(HiveSQLException.toTStatus(e));
     }
     return resp;
+  }
+
+  public TExecuteStatementResp executeNothing(TExecuteStatementReq req) {
+    TExecuteStatementResp resp = new TExecuteStatementResp();
+    try {
+      SessionHandle sessionHandle = new SessionHandle(req.getSessionHandle());
+      OperationHandle opHandle = cliService.createNothingOperation(sessionHandle);
+      resp.setOperationHandle(opHandle.toTOperationHandle());
+      resp.setStatus(OK_STATUS);
+    } catch (Exception e) {
+      LOG.warn("Error executing statement: ", e);
+      resp.setStatus(HiveSQLException.toTStatus(e));
+    }
+    return resp;
+  }
+
+  @Override
+  public TExecuteStatementResp ExecuteStatement(TExecuteStatementReq req) throws TException {
+    String statement = req.getStatement();
+    Optional<ExecuteRecord> record = executeRecordService.getExecuteRecordBySql(statement);
+
+    if (record.isPresent()) {
+      ExecuteRecord executeRecord = record.get();
+      boolean historyHiveServerIsRunning = true;
+      if (executeRecord.getStatus().equals(OperationState.INITIALIZED) && !historyHiveServerIsRunning) {
+        executeRecordService.deleteRecordNode(executeRecord.getSql());
+        return executeNewStatement(req);
+      } else {
+        return executeNothing(req);
+      }
+    } else {
+      return executeNewStatement(req);
+    }
   }
 
   @Override
@@ -625,20 +657,32 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
   @Override
   public TGetOperationStatusResp GetOperationStatus(TGetOperationStatusReq req) throws TException {
     TGetOperationStatusResp resp = new TGetOperationStatusResp();
-    try {
-      OperationStatus operationStatus = cliService.getOperationStatus(
-              new OperationHandle(req.getOperationHandle()));
-      resp.setOperationState(operationStatus.getState().toTOperationState());
-      HiveSQLException opException = operationStatus.getOperationException();
-      if (opException != null) {
-        resp.setSqlState(opException.getSQLState());
-        resp.setErrorCode(opException.getErrorCode());
-        resp.setErrorMessage(opException.getMessage());
+    TOperationHandle opHandle = req.getOperationHandle();
+    if (opHandle.getOperationType().equals(OperationType.NOTHING)) {
+      String operationId = opHandle.getOperationId().toString();
+      Optional<ExecuteRecord> record = executeRecordService.getRecordByOperationId(operationId);
+      if (record.isPresent()) {
+        resp.setOperationState(record.get().getStatus().toTOperationState());
+        resp.setStatus(OK_STATUS);
+      } else {
+        resp.setStatus(HiveSQLException.toTStatus(new NotFoundException("Cannot find any record in zookeeper about operation id: " + operationId)));
       }
-      resp.setStatus(OK_STATUS);
-    } catch (Exception e) {
-      LOG.warn("Error getting operation status: ", e);
-      resp.setStatus(HiveSQLException.toTStatus(e));
+    } else {
+      try {
+        OperationStatus operationStatus = cliService.getOperationStatus(
+                new OperationHandle(opHandle));
+        resp.setOperationState(operationStatus.getState().toTOperationState());
+        HiveSQLException opException = operationStatus.getOperationException();
+        if (opException != null) {
+          resp.setSqlState(opException.getSQLState());
+          resp.setErrorCode(opException.getErrorCode());
+          resp.setErrorMessage(opException.getMessage());
+        }
+        resp.setStatus(OK_STATUS);
+      } catch (Exception e) {
+        LOG.warn("Error getting operation status: ", e);
+        resp.setStatus(HiveSQLException.toTStatus(e));
+      }
     }
     return resp;
   }

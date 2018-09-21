@@ -3,8 +3,9 @@ package org.apache.hive.service.cli.history;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.hive.service.cli.OperationState;
 import org.apache.hive.service.cli.history.exception.ParseException;
+import org.codehaus.jackson.map.ObjectMapper;
 
-import java.nio.charset.Charset;
+import java.io.IOException;
 
 public class ExecuteRecordFactory {
   public static ExecuteRecord buildNewRecord(String statement) {
@@ -15,20 +16,21 @@ public class ExecuteRecordFactory {
     return executeRecord;
   }
 
-  public static ExecuteRecord parseRecordFromStrBytes(byte[] data) {
-    String recordStr = new String(data, Charset.forName("UTF-8"));
-    String[] fields = recordStr.split(",");
-    if (fields.length != 7) {
-      throw new ParseException("Cannot parse execute record: " + recordStr);
+  public static ExecuteRecord convertByteToRecord(byte[] bytes) {
+    ObjectMapper mapper = new ObjectMapper();
+    try {
+      return mapper.readValue(bytes, ExecuteRecord.class);
+    } catch (IOException e) {
+      throw new ParseException("Cannot parse execute record: " + bytes);
     }
-    ExecuteRecord record = new ExecuteRecord();
-    record.setSql(fields[0].split("=")[1]);
-    record.setAppId(fields[1].split("=")[1]);
-    record.setQueryId(fields[2].split("=")[1]);
-    record.setStatus(fields[3].split("=")[1]);
-    record.setRetUrl(fields[4].split("=")[1]);
-    record.setStartTime(fields[5].split("=")[1]);
-    record.setEndTime(fields[6].split("=")[1]);
-    return record;
+  }
+
+  public static byte[] convertRecordToBytes(ExecuteRecord record) {
+    ObjectMapper mapper = new ObjectMapper();
+    try {
+      return mapper.writeValueAsBytes(record);
+    } catch (IOException e) {
+      throw new ParseException("Cannot parse execute record: " + record);
+    }
   }
 }

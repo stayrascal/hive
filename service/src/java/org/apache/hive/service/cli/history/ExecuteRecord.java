@@ -1,10 +1,6 @@
 package org.apache.hive.service.cli.history;
 
-import org.apache.commons.codec.digest.DigestUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.hive.service.cli.OperationState;
-
-import java.nio.charset.Charset;
 
 public class ExecuteRecord {
   private String sql;
@@ -14,6 +10,7 @@ public class ExecuteRecord {
   private String retUrl;
   private Long startTime;
   private Long endTime;
+  private String operationId;
 
   public String getSql() {
     return sql;
@@ -31,12 +28,16 @@ public class ExecuteRecord {
     this.appId = appId;
   }
 
-  public OperationState getStatus() {
-    return status;
+  public String getQueryId() {
+    return queryId;
   }
 
-  public void setStatus(String status) {
-    this.status = OperationState.valueOf(status);
+  public void setQueryId(String queryId) {
+    this.queryId = queryId;
+  }
+
+  public OperationState getStatus() {
+    return status;
   }
 
   public void setStatus(OperationState status) {
@@ -51,26 +52,12 @@ public class ExecuteRecord {
     this.retUrl = retUrl;
   }
 
-  public String getQueryId() {
-    return queryId;
-  }
-
-  public void setQueryId(String queryId) {
-    this.queryId = queryId;
-  }
-
   public Long getStartTime() {
     return startTime;
   }
 
   public void setStartTime(Long startTime) {
     this.startTime = startTime;
-  }
-
-  public void setStartTime(String startTime) {
-    if (!"null".equals(endTime) && !StringUtils.isEmpty(startTime)) {
-      this.startTime = Long.parseLong(startTime);
-    }
   }
 
   public Long getEndTime() {
@@ -81,30 +68,11 @@ public class ExecuteRecord {
     this.endTime = endTime;
   }
 
-  public void setEndTime(String endTime) {
-    if (!"null".equals(endTime) && !StringUtils.isEmpty(endTime)) {
-      this.endTime = Long.parseLong(endTime);
-    }
+  public String getOperationId() {
+    return operationId;
   }
 
-  @Override
-  public String toString() {
-    return "sql=" + sql +
-            ",queryId=" + queryId +
-            ",appId=" + appId +
-            ",status=" + status.name() +
-            ",retUrl=" + retUrl +
-            ",startTime=" + startTime +
-            ",endTime=" + endTime;
-  }
-
-  public byte[] getNodeData() {
-    return toString().getBytes(Charset.forName("UTF-8"));
-  }
-
-  public static void main(String[] args) {
-    ExecuteRecord record = new ExecuteRecord();
-    record.setSql(DigestUtils.md5Hex("select sum(*) from test").toUpperCase());
-    System.out.println(record);
+  public void setOperationId(String operationId) {
+    this.operationId = operationId;
   }
 }

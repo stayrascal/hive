@@ -506,6 +506,7 @@ enum TOperationType {
   GET_COLUMNS,
   GET_FUNCTIONS,
   UNKNOWN,
+  NOTHING,
 }
 
 // Client-side reference to a task running

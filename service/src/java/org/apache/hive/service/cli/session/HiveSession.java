@@ -18,12 +18,19 @@
 
 package org.apache.hive.service.cli.session;
 
-import java.util.List;
-import java.util.Map;
-
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hive.service.auth.HiveAuthFactory;
-import org.apache.hive.service.cli.*;
+import org.apache.hive.service.cli.FetchOrientation;
+import org.apache.hive.service.cli.FetchType;
+import org.apache.hive.service.cli.GetInfoType;
+import org.apache.hive.service.cli.GetInfoValue;
+import org.apache.hive.service.cli.HiveSQLException;
+import org.apache.hive.service.cli.OperationHandle;
+import org.apache.hive.service.cli.RowSet;
+import org.apache.hive.service.cli.TableSchema;
+
+import java.util.List;
+import java.util.Map;
 
 public interface HiveSession extends HiveSessionBase {
 
@@ -124,6 +131,8 @@ public interface HiveSession extends HiveSessionBase {
    */
   OperationHandle getFunctions(String catalogName, String schemaName,
       String functionName) throws HiveSQLException;
+
+  OperationHandle createNothingOperation() throws HiveSQLException;
 
   /**
    * close the session
