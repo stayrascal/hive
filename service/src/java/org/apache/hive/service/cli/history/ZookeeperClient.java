@@ -1,12 +1,24 @@
 package org.apache.hive.service.cli.history;
 
+import org.apache.hadoop.hive.conf.HiveConf;
+
 public class ZookeeperClient {
-    private static ZookeeperClient ourInstance = new ZookeeperClient();
+  private static ZkExecuteRecordService instance = null;
 
-    public static ZookeeperClient getInstance() {
-        return ourInstance;
+  public synchronized static ZkExecuteRecordService getInstance(HiveConf hiveConf) {
+    if (instance == null) {
+      instance = new ZkExecuteRecordService(hiveConf);
     }
+    return instance;
+  }
 
-    private ZookeeperClient() {
+  public static ZkExecuteRecordService getInstance() {
+    if (instance == null) {
+      throw new IllegalArgumentException("ZkExecuteRecordService not ready");
     }
+    return instance;
+  }
+
+  private ZookeeperClient() {
+  }
 }

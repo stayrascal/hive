@@ -15,4 +15,6 @@ public interface ExecuteRecordService {
   Optional<ExecuteRecord> getRecordByOperationId(String operationId);
 
   void deleteRecordNode(String sqlId);
+
+  void createOperationNode(ExecuteRecord record);
 }

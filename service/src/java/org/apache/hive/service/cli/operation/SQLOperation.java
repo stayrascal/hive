@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -26,6 +26,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
@@ -61,12 +62,15 @@ import org.apache.hive.service.cli.OperationState;
 import org.apache.hive.service.cli.RowSet;
 import org.apache.hive.service.cli.RowSetFactory;
 import org.apache.hive.service.cli.TableSchema;
+import org.apache.hive.service.cli.history.ExecuteRecord;
+import org.apache.hive.service.cli.history.ZkExecuteRecordService;
+import org.apache.hive.service.cli.history.ZookeeperClient;
+import org.apache.hive.service.cli.history.exception.NotFoundException;
 import org.apache.hive.service.cli.session.HiveSession;
 import org.apache.hive.service.server.ThreadWithGarbageCleanup;
 
 /**
  * SQLOperation.
- *
  */
 public class SQLOperation extends ExecuteStatementOperation {
 
@@ -116,7 +120,7 @@ public class SQLOperation extends ExecuteStatementOperation {
 
       // hasResultSet should be true only if the query has a FetchTask
       // "explain" is an exception for now
-      if(driver.getPlan().getFetchTask() != null) {
+      if (driver.getPlan().getFetchTask() != null) {
         //Schema has to be set
         if (mResultSchema == null || !mResultSchema.isSetFieldSchemas()) {
           throw new HiveSQLException("Error compiling query: Schema and FieldSchema " +
@@ -129,7 +133,7 @@ public class SQLOperation extends ExecuteStatementOperation {
       }
       // Set hasResultSet true if the plan has ExplainTask
       // TODO explain should use a FetchTask for reading
-      for (Task<? extends Serializable> task: driver.getPlan().getRootTasks()) {
+      for (Task<? extends Serializable> task : driver.getPlan().getRootTasks()) {
         if (task.getClass() == ExplainTask.class) {
           resultSchema = new TableSchema(mResultSchema);
           setHasResultSet(true);
@@ -162,8 +166,7 @@ public class SQLOperation extends ExecuteStatementOperation {
       // otherwise throw an exception
       if (getStatus().getState() == OperationState.CANCELED) {
         return;
-      }
-      else {
+      } else {
         setState(OperationState.ERROR);
         throw e;
       }
@@ -171,6 +174,20 @@ public class SQLOperation extends ExecuteStatementOperation {
       setState(OperationState.ERROR);
       throw new HiveSQLException("Error running query: " + e.toString(), e);
     }
+
+    String statement = driver.getPlan().getQueryString();
+    ZkExecuteRecordService recordService = ZookeeperClient.getInstance();
+    Optional<ExecuteRecord> recordOpt = recordService.getExecuteRecordBySql(statement);
+    if (recordOpt.isPresent()) {
+      ExecuteRecord record = recordOpt.get();
+      record.setStatus(OperationState.FINISHED);
+      record.setQueryId(driver.getPlan().getQueryId());
+      // TODO need to set result hdfs address
+      recordService.updateRecordNode(record);
+    } else {
+      throw new NotFoundException("Execute record cannot be found by statement: " + statement);
+    }
+    // TODO update recordOpt status
     setState(OperationState.FINISHED);
   }
 
@@ -219,8 +236,7 @@ public class SQLOperation extends ExecuteStatementOperation {
           } catch (Exception e) {
             setOperationException(new HiveSQLException(e));
             LOG.error("Error running hive query as user : " + currentUGI.getShortUserName(), e);
-          }
-          finally {
+          } finally {
             /**
              * We'll cache the ThreadLocal RawStore object for this background thread for an orderly cleanup
              * when this thread is garbage collected later.
@@ -249,6 +265,7 @@ public class SQLOperation extends ExecuteStatementOperation {
 
   /**
    * Returns the current UGI on the stack
+   *
    * @param opConfig
    * @return UserGroupInformation
    * @throws HiveSQLException
@@ -263,6 +280,7 @@ public class SQLOperation extends ExecuteStatementOperation {
 
   /**
    * Returns the ThreadLocal Hive for the current thread
+   *
    * @return Hive
    * @throws HiveSQLException
    */
@@ -387,7 +405,7 @@ public class SQLOperation extends ExecuteStatementOperation {
     int protocol = getProtocolVersion().getValue();
     for (Object rowString : rows) {
       try {
-        rowObj = serde.deserialize(new BytesWritable(((String)rowString).getBytes("UTF-8")));
+        rowObj = serde.deserialize(new BytesWritable(((String) rowString).getBytes("UTF-8")));
       } catch (UnsupportedEncodingException e) {
         throw new SerDeException(e);
       }
@@ -447,9 +465,10 @@ public class SQLOperation extends ExecuteStatementOperation {
    * If there are query specific settings to overlay, then create a copy of config
    * There are two cases we need to clone the session config that's being passed to hive driver
    * 1. Async query -
-   *    If the client changes a config setting, that shouldn't reflect in the execution already underway
+   * If the client changes a config setting, that shouldn't reflect in the execution already underway
    * 2. confOverlay -
-   *    The query specific settings should only be applied to the query config and not session
+   * The query specific settings should only be applied to the query config and not session
+   *
    * @return new configuration
    * @throws HiveSQLException
    */

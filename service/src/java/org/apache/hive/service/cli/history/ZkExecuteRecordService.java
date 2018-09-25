@@ -2,10 +2,17 @@ package org.apache.hive.service.cli.history;
 
 import static org.apache.hadoop.hive.ql.util.ZooKeeperHiveHelper.ZOOKEEPER_PATH_SEPARATOR;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.nio.charset.Charset;
+import java.util.Optional;
+import java.util.function.Function;
+
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.lockmgr.zookeeper.CuratorFrameworkSingleton;
+import org.apache.hive.service.ServiceException;
 import org.apache.hive.service.cli.history.exception.ConnectZkException;
 import org.apache.hive.service.cli.history.exception.CreateZkNodeException;
 import org.apache.hive.service.cli.history.exception.DeleteZkNodeException;
@@ -14,25 +21,25 @@ import org.apache.zookeeper.KeeperException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.charset.Charset;
-import java.util.Optional;
-import java.util.function.Function;
-
 public class ZkExecuteRecordService implements ExecuteRecordService {
 
   private Logger logger = LoggerFactory.getLogger(getClass().getName());
   private CuratorFramework zooKeeperClient;
   private String sqlHistoryRootNamespace;
   private String operationRootNamespace;
+  private String hostName;
 
-  public ZkExecuteRecordService(HiveConf hiveConf) {
+  protected ZkExecuteRecordService(HiveConf hiveConf) {
     zooKeeperClient = CuratorFrameworkSingleton.getInstance(hiveConf);
     sqlHistoryRootNamespace = hiveConf.getVar(HiveConf.ConfVars.HIVE_SQL_HISTORY_ZOOKEEPER_NAMESPACE);
     operationRootNamespace = hiveConf.getVar(HiveConf.ConfVars.OPERATION_ZOOKEEPER_NAMESPACE);
+    hostName = getHostName(hiveConf);
     createRootNamespaceIfNotExist(sqlHistoryRootNamespace);
     createRootNamespaceIfNotExist(operationRootNamespace);
+  }
 
-    /*InetAddress serverIPAddress = null;
+  private String getHostName(HiveConf hiveConf) {
+    InetAddress serverIPAddress = null;
     String hiveHost = System.getenv("HIVE_SERVER2_THRIFT_BIND_HOST");
     if (hiveHost == null) {
       hiveHost = hiveConf.getVar(HiveConf.ConfVars.HIVE_SERVER2_THRIFT_BIND_HOST);
@@ -47,26 +54,9 @@ public class ZkExecuteRecordService implements ExecuteRecordService {
       throw new ServiceException(e);
     }
 
-    String portString = null;
-    int portNum = 0;
-    if (HiveServer2.isHTTPTransportMode(hiveConf)) {
-      portString = System.getenv("HIVE_SERVER2_THRIFT_HTTP_PORT");
-      if (portString != null) {
-        portNum = Integer.valueOf(portString);
-      } else {
-        portNum = hiveConf.getIntVar(HiveConf.ConfVars.HIVE_SERVER2_THRIFT_HTTP_PORT);
-      }
-    } else {
-      portString = System.getenv("HIVE_SERVER2_THRIFT_PORT");
-      if (portString != null) {
-        portNum = Integer.valueOf(portString);
-      } else {
-        portNum = hiveConf.getIntVar(HiveConf.ConfVars.HIVE_SERVER2_THRIFT_PORT);
-      }
-    }
-
-    String ServerInstanceURI = serverIPAddress.getHostName() + ":" + portNum;*/
+    return serverIPAddress.getHostName();
   }
+
 
   private String createRootNamespaceIfNotExist(String rootPath) {
     try {
@@ -89,6 +79,7 @@ public class ZkExecuteRecordService implements ExecuteRecordService {
   @Override
   public ExecuteRecord createRecordNode(String sql) {
     ExecuteRecord executeRecord = ExecuteRecordFactory.buildNewRecord(sql);
+    executeRecord.setHostName(hostName);
     String pathPrefix = ZOOKEEPER_PATH_SEPARATOR + sqlHistoryRootNamespace
             + ZOOKEEPER_PATH_SEPARATOR + executeRecord.getSql();
     byte[] data = ExecuteRecordFactory.convertRecordToBytes(executeRecord);
@@ -107,14 +98,13 @@ public class ZkExecuteRecordService implements ExecuteRecordService {
   @Override
   public ExecuteRecord updateRecordNode(ExecuteRecord record) {
     String path = ZOOKEEPER_PATH_SEPARATOR + sqlHistoryRootNamespace + ZOOKEEPER_PATH_SEPARATOR + record.getSql();
+    record.setHostName(hostName);
     byte[] data = ExecuteRecordFactory.convertRecordToBytes(record);
     try {
       zooKeeperClient.setData().forPath(path, data);
     } catch (Exception e) {
       e.printStackTrace();
     }
-
-    createOperationNode(record.getOperationId(), record.getSql());
     return record;
   }
 
@@ -126,14 +116,15 @@ public class ZkExecuteRecordService implements ExecuteRecordService {
             ExecuteRecordFactory::convertByteToRecord).map(obj -> (ExecuteRecord) obj);
   }
 
-  private void createOperationNode(String operationId, String sqlId) {
+  @Override
+  public void createOperationNode(ExecuteRecord record) {
     String pathPrefix = ZOOKEEPER_PATH_SEPARATOR + operationRootNamespace
-            + ZOOKEEPER_PATH_SEPARATOR + operationId;
+            + ZOOKEEPER_PATH_SEPARATOR + record.getOperationId();
     try {
       zooKeeperClient.create()
               .creatingParentsIfNeeded()
               .withMode(CreateMode.PERSISTENT)
-              .forPath(pathPrefix, sqlId.getBytes());
+              .forPath(pathPrefix, record.getSql().getBytes());
       logger.info("Created a operation znode on ZooKeeper: " + pathPrefix);
     } catch (Exception e) {
       throw new CreateZkNodeException("Unable to create znode: " + pathPrefix + " on ZooKeeper", e);

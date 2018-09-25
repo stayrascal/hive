@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 
+import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -1373,7 +1374,8 @@ public class Driver implements CommandProcessor {
             String.valueOf(jobs));
         SessionState.get().getHiveHistory().setIdToTableMap(plan.getIdToTableNameMap());
       }
-      String jobname = Utilities.abbreviate(queryStr, maxlen - 6);
+      /*String jobname = Utilities.abbreviate(queryStr, maxlen - 6);*/
+      String jobname = DigestUtils.md5Hex(queryStr).toUpperCase();
 
       // A runtime that launches runnable tasks as separate Threads through
       // TaskRunners
@@ -1626,7 +1628,9 @@ public class Driver implements CommandProcessor {
     }
     if (tsk.isMapRedTask() && !(tsk instanceof ConditionalTask)) {
       if (noName) {
-        conf.setVar(HiveConf.ConfVars.HADOOPJOBNAME, jobname + "(" + tsk.getId() + ")");
+        /*conf.setVar(HiveConf.ConfVars.HADOOPJOBNAME, jobname + "(" + tsk.getId() + ")");*/
+        // TODO may be failed if there are multiple task of one job
+        conf.setVar(HiveConf.ConfVars.HADOOPJOBNAME, jobname);
       }
       conf.set("mapreduce.workflow.node.name", tsk.getId());
       Utilities.setWorkflowAdjacencies(conf, plan);

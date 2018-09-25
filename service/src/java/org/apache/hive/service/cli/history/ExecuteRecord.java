@@ -11,6 +11,7 @@ public class ExecuteRecord {
   private Long startTime;
   private Long endTime;
   private String operationId;
+  private String hostName;
 
   public String getSql() {
     return sql;
@@ -74,5 +75,13 @@ public class ExecuteRecord {
 
   public void setOperationId(String operationId) {
     this.operationId = operationId;
+  }
+
+  public String getHostName() {
+    return hostName;
+  }
+
+  public void setHostName(String hostName) {
+    this.hostName = hostName;
   }
 }
