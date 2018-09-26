@@ -26,7 +26,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
@@ -183,9 +182,8 @@ public class SQLOperation extends ExecuteStatementOperation {
   private void updateZookeeperNode() {
     String statement = driver.getPlan().getQueryString();
     ZkExecuteRecordService recordService = ZookeeperClient.getInstance();
-    Optional<ExecuteRecord> recordOpt = recordService.getExecuteRecordBySql(statement);
-    if (recordOpt.isPresent()) {
-      ExecuteRecord record = recordOpt.get();
+    ExecuteRecord record = recordService.getExecuteRecordBySql(statement);
+    if (record != null) {
       record.setStatus(ExecuteStatus.FINISHED);
       record.setQueryId(driver.getPlan().getQueryId());
       record.setEndTime(System.currentTimeMillis());

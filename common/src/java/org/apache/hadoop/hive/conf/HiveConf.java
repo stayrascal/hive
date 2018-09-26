@@ -18,24 +18,6 @@
 
 package org.apache.hadoop.hive.conf;
 
-import com.google.common.base.Joiner;
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.common.classification.InterfaceAudience.LimitedPrivate;
-import org.apache.hadoop.hive.conf.Validator.PatternSet;
-import org.apache.hadoop.hive.conf.Validator.RangeValidator;
-import org.apache.hadoop.hive.conf.Validator.RatioValidator;
-import org.apache.hadoop.hive.conf.Validator.StringSet;
-import org.apache.hadoop.hive.conf.Validator.TimeValidator;
-import org.apache.hadoop.hive.shims.ShimLoader;
-import org.apache.hadoop.hive.shims.Utils;
-import org.apache.hadoop.mapred.JobConf;
-import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.util.Shell;
-import org.apache.hive.common.HiveCompat;
-
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -53,6 +35,24 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.security.auth.login.LoginException;
+
+import com.google.common.base.Joiner;
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.common.classification.InterfaceAudience.LimitedPrivate;
+import org.apache.hadoop.hive.conf.Validator.PatternSet;
+import org.apache.hadoop.hive.conf.Validator.RangeValidator;
+import org.apache.hadoop.hive.conf.Validator.RatioValidator;
+import org.apache.hadoop.hive.conf.Validator.StringSet;
+import org.apache.hadoop.hive.conf.Validator.TimeValidator;
+import org.apache.hadoop.hive.shims.ShimLoader;
+import org.apache.hadoop.hive.shims.Utils;
+import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.util.Shell;
+import org.apache.hive.common.HiveCompat;
 
 /**
  * Hive Configuration.
@@ -1762,6 +1762,8 @@ public class HiveConf extends Configuration {
         "hive.zookeeper.quorum in their connection string."),
     HIVE_SERVER2_ZOOKEEPER_NAMESPACE("hive.server2.zookeeper.namespace", "hiveserver2",
         "The parent node in ZooKeeper used by HiveServer2 when supporting dynamic service discovery."),
+    FINISHED_EXECUTION_ZOOKEEPER_NAMESPACE("finished.execution.zookeeper.namespace", "finishedrecords",
+        "The finished execution record root node, used for clean up by scheduler task."),
     HIVE_SQL_HISTORY_ZOOKEEPER_NAMESPACE("beeline.sql.zookeeper.namespace", "beelinesql",
             "The parent node in ZooKeeper used by record sql history when supporting dynamic service discovery."),
     OPERATION_ZOOKEEPER_NAMESPACE("operation.zookeeper.namespace", "operations",

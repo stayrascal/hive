@@ -22,8 +22,8 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import javax.security.auth.login.LoginException;
 
@@ -547,17 +547,16 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
   @Override
   public TExecuteStatementResp ExecuteStatement(TExecuteStatementReq req) throws TException {
     String statement = req.getStatement();
-    Optional<ExecuteRecord> record = executeRecordService.getExecuteRecordBySql(statement);
+    ExecuteRecord record = executeRecordService.getExecuteRecordBySql(statement);
 
-    if (record.isPresent()) {
-      ExecuteRecord executeRecord = record.get();
-      boolean isHiveServerRestarted = executeRecordService.isOriginalServerRestarted(executeRecord);
-      if (executeRecord.getStatus().equals(ExecuteStatus.COMPILING) && isHiveServerRestarted) {
-        executeRecordService.deleteRecordNode(executeRecord.getSql());
-        executeRecordService.deleteOperationNode(executeRecord.getOperationId());
+    if (record != null) {
+      boolean isHiveServerRestarted = executeRecordService.isOriginalServerRestartedOrRemoved(record);
+      if (record.getStatus().equals(ExecuteStatus.COMPILING) && isHiveServerRestarted) {
+        executeRecordService.deleteRecordNode(record.getSql());
+        executeRecordService.deleteOperationNode(record.getOperationId());
         return executeNewStatement(req);
       } else {
-        return executeNothing(req, record.get(), statement);
+        return executeNothing(req, record, statement);
       }
     } else {
       return executeNewStatement(req);
@@ -678,9 +677,9 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
     TOperationHandle opHandle = req.getOperationHandle();
     if (opHandle.getOperationType().name().equals(OperationType.NOTHING.name())) {
       String operationId = DigestUtils.md5Hex(opHandle.getOperationId().toString()).toUpperCase();
-      Optional<ExecuteRecord> record = executeRecordService.getRecordByOperationId(operationId);
-      if (record.isPresent()) {
-        setOperationState(resp, record.get());
+      ExecuteRecord record = executeRecordService.getRecordByOperationId(operationId);
+      if (record != null) {
+        setOperationState(resp, record);
         resp.setStatus(OK_STATUS);
       } else {
         resp.setStatus(HiveSQLException.toTStatus(new NotFoundException("Cannot find any record in zookeeper about operation id: " + operationId)));
@@ -715,7 +714,7 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
   }
 
   private void setOperationStateWhileJobIsRunning(TGetOperationStatusResp resp, ExecuteRecord executeRecord) {
-    boolean isOriginServerRestarted = executeRecordService.isOriginalServerRestarted(executeRecord);
+    boolean isOriginServerRestarted = executeRecordService.isOriginalServerRestartedOrRemoved(executeRecord);
     if (isOriginServerRestarted) {
       setOperationStateWhenJobRunningInYarn(resp, executeRecord);
     } else {
@@ -724,9 +723,9 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
   }
 
   private void setOperationStateWhenJobRunningInYarn(TGetOperationStatusResp resp, ExecuteRecord executeRecord) {
-    Optional<ApplicationReport> applicationReport = searchAppByJobName(executeRecord.getSql());
-    if (applicationReport.isPresent()) {
-      YarnApplicationState yarnState = applicationReport.get().getYarnApplicationState();
+    ApplicationReport applicationReport = searchAppByJobName(executeRecord);
+    if (applicationReport != null) {
+      YarnApplicationState yarnState = applicationReport.getYarnApplicationState();
       if (yarnState.equals(YarnApplicationState.FINISHED)) {
         resp.setOperationState(OperationState.FINISHED.toTOperationState());
         executeRecord.setStatus(ExecuteStatus.FINISHED);
@@ -744,15 +743,18 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
     }
   }
 
-  private Optional<ApplicationReport> searchAppByJobName(String jobName) {
+  private ApplicationReport searchAppByJobName(ExecuteRecord record) {
     try {
-      return YarnSingleton.getInstance().getApplications().stream()
-          .filter(app -> app.getName().equals(jobName))
-          .findFirst();
+      List<ApplicationReport> applications = YarnSingleton.getInstance().getApplications();
+      for (ApplicationReport app : applications) {
+        if (app.getName().equals(record.getSql())) {
+          return app;
+        }
+      }
     } catch (YarnException | IOException e) {
-      LOG.error("Cannot found application with job name: " + jobName);
-      return Optional.empty();
+      LOG.error("Cannot found application with job name: " + record.getSql());
     }
+    return null;
   }
 
   @Override

@@ -5,8 +5,7 @@ import static org.apache.hadoop.hive.ql.util.ZooKeeperHiveHelper.ZOOKEEPER_PATH_
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.charset.Charset;
-import java.util.Optional;
-import java.util.function.Function;
+import java.util.List;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.curator.framework.CuratorFramework;
@@ -15,6 +14,7 @@ import org.apache.hadoop.hive.ql.lockmgr.zookeeper.CuratorFrameworkSingleton;
 import org.apache.hive.service.ServiceException;
 import org.apache.hive.service.cli.history.exception.ConnectZkException;
 import org.apache.hive.service.cli.history.exception.CreateZkNodeException;
+import org.apache.hive.service.cli.history.parse.ParseFunction;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.data.Stat;
@@ -27,17 +27,21 @@ public class ZkExecuteRecordService implements ExecuteRecordService {
   private CuratorFramework zooKeeperClient;
   private String sqlHistoryRootNamespace;
   private String operationRootNamespace;
-  private String hiveServerRootNamespce;
+  private String hiveServerRootNamespace;
+  private String finishedRootNamespace;
   private String hostName;
 
   protected ZkExecuteRecordService(HiveConf hiveConf) {
     zooKeeperClient = CuratorFrameworkSingleton.getInstance(hiveConf);
     sqlHistoryRootNamespace = ZOOKEEPER_PATH_SEPARATOR + hiveConf.getVar(HiveConf.ConfVars.HIVE_SQL_HISTORY_ZOOKEEPER_NAMESPACE);
     operationRootNamespace = ZOOKEEPER_PATH_SEPARATOR + hiveConf.getVar(HiveConf.ConfVars.OPERATION_ZOOKEEPER_NAMESPACE);
-    hiveServerRootNamespce = ZOOKEEPER_PATH_SEPARATOR + hiveConf.getVar(HiveConf.ConfVars.HIVE_SERVER2_ZOOKEEPER_NAMESPACE);
+    hiveServerRootNamespace = ZOOKEEPER_PATH_SEPARATOR + hiveConf.getVar(HiveConf.ConfVars.HIVE_SERVER2_ZOOKEEPER_NAMESPACE);
+    finishedRootNamespace = ZOOKEEPER_PATH_SEPARATOR + hiveConf.getVar(HiveConf.ConfVars.FINISHED_EXECUTION_ZOOKEEPER_NAMESPACE);
+
     hostName = getHostName(hiveConf);
     createRootNamespaceIfNotExist(sqlHistoryRootNamespace);
     createRootNamespaceIfNotExist(operationRootNamespace);
+    createRootNamespaceIfNotExist(finishedRootNamespace);
   }
 
   private String getHostName(HiveConf hiveConf) {
@@ -110,19 +114,20 @@ public class ZkExecuteRecordService implements ExecuteRecordService {
   }
 
   @Override
-  public Optional<ExecuteRecord> getExecuteRecordBySql(String sql) {
-    return searchNodeData(
-        sqlHistoryRootNamespace,
-        DigestUtils.md5Hex(sql).toUpperCase(),
-        ExecuteRecordFactory::convertByteToRecord).map(obj -> (ExecuteRecord) obj);
+  public ExecuteRecord getExecuteRecordBySql(String sql) {
+    return getExecuteRecordByMD5Sql(DigestUtils.md5Hex(sql).toUpperCase());
   }
 
   @Override
-  public Optional<ExecuteRecord> getExecuteRecordByMD5Sql(String md5Sql) {
-    return searchNodeData(
-        sqlHistoryRootNamespace,
-        md5Sql,
-        ExecuteRecordFactory::convertByteToRecord).map(obj -> (ExecuteRecord) obj);
+  public ExecuteRecord getExecuteRecordByMD5Sql(String md5Sql) {
+    return (ExecuteRecord) searchNodeData(sqlHistoryRootNamespace, md5Sql,
+        new ParseFunction() {
+          @Override
+          public Object parse(byte[] bytes) {
+            return ExecuteRecordFactory.convertByteToRecord(bytes);
+          }
+        }
+    );
   }
 
   @Override
@@ -139,36 +144,39 @@ public class ZkExecuteRecordService implements ExecuteRecordService {
     }
   }
 
-  private Optional<Object> searchNodeData(String prefixPath, String node, Function<byte[], Object> function) {
+  private Object searchNodeData(String prefixPath, String node, ParseFunction parse) {
     String nodePath = prefixPath + ZOOKEEPER_PATH_SEPARATOR + node;
     try {
       if (zooKeeperClient.checkExists().forPath(nodePath) != null) {
         byte[] bytes = zooKeeperClient.getData().forPath(nodePath);
         if (bytes != null && bytes.length > 0) {
-          return Optional.of(function.apply(bytes));
+          return parse.parse(bytes);
         }
       }
     } catch (Exception e) {
       throw new ConnectZkException("Connect Zookeeper failed.", e);
     }
-    return Optional.empty();
+    return null;
   }
 
   @Override
-  public Optional<String> getSqlByOperationId(String operationId) {
-    return searchNodeData(
-        operationRootNamespace,
-        operationId,
-        bytes -> new String(bytes, Charset.forName("UTF-8"))).map(String::valueOf);
+  public String getSqlByOperationId(String operationId) {
+    return (String) searchNodeData(operationRootNamespace, operationId, new ParseFunction<String>() {
+      @Override
+      public String parse(byte[] bytes) {
+        return new String(bytes, Charset.forName("UTF-8"));
+      }
+    });
+
   }
 
   @Override
-  public Optional<ExecuteRecord> getRecordByOperationId(String md5OperationId) {
-    Optional<String> md5SqlOpt = getSqlByOperationId(md5OperationId);
-    if (md5SqlOpt.isPresent()) {
-      return getExecuteRecordByMD5Sql(md5SqlOpt.get());
+  public ExecuteRecord getRecordByOperationId(String md5OperationId) {
+    String md5SqlOpt = getSqlByOperationId(md5OperationId);
+    if (md5SqlOpt != null) {
+      return getExecuteRecordByMD5Sql(md5SqlOpt);
     } else {
-      return Optional.empty();
+      return null;
     }
   }
 
@@ -183,24 +191,20 @@ public class ZkExecuteRecordService implements ExecuteRecordService {
   }
 
   @Override
-  public boolean isOriginalServerRestarted(ExecuteRecord record) {
+  public boolean isOriginalServerRestartedOrRemoved(ExecuteRecord record) {
     String originalServer = record.getHostName();
     try {
-      Optional<String> serverNode = zooKeeperClient
-          .getChildren()
-          .forPath(hiveServerRootNamespce)
-          .stream()
-          .filter(nodeName -> nodeName.contains(originalServer))
-          .findFirst();
-      if (serverNode.isPresent()) {
-        Stat nodeStat = getNodeStat(hiveServerRootNamespce + ZOOKEEPER_PATH_SEPARATOR + serverNode.get());
-        return nodeStat.getCtime() > record.getStartTime();
-      } else {
-        return true;
+      List<String> nodes = zooKeeperClient.getChildren().forPath(hiveServerRootNamespace);
+      for (String node : nodes) {
+        if (nodes.contains(originalServer)) {
+          Stat nodeStat = getNodeStat(hiveServerRootNamespace + ZOOKEEPER_PATH_SEPARATOR + node);
+          return nodeStat.getCtime() > record.getStartTime();
+        }
       }
     } catch (Exception e) {
-      throw new ConnectZkException("Connect Zookeeper failed of node: " + hiveServerRootNamespce, e);
+      throw new ConnectZkException("Connect Zookeeper failed of node: " + hiveServerRootNamespace, e);
     }
+    return true;
   }
 
   @Override
