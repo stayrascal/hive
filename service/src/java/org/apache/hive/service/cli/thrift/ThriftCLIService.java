@@ -34,9 +34,6 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.yarn.api.records.ApplicationReport;
 import org.apache.hadoop.yarn.api.records.YarnApplicationState;
-import org.apache.hadoop.yarn.client.api.YarnClient;
-import org.apache.hadoop.yarn.client.api.impl.YarnClientImpl;
-import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.apache.hive.service.AbstractService;
 import org.apache.hive.service.ServiceException;
@@ -59,6 +56,7 @@ import org.apache.hive.service.cli.TableSchema;
 import org.apache.hive.service.cli.history.ExecuteRecord;
 import org.apache.hive.service.cli.history.ExecuteRecordService;
 import org.apache.hive.service.cli.history.ExecuteStatus;
+import org.apache.hive.service.cli.history.YarnSingleton;
 import org.apache.hive.service.cli.history.ZookeeperClient;
 import org.apache.hive.service.cli.history.exception.NotFoundException;
 import org.apache.hive.service.cli.session.SessionManager;
@@ -556,6 +554,7 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
       boolean isHiveServerRestarted = executeRecordService.isOriginalServerRestarted(executeRecord);
       if (executeRecord.getStatus().equals(ExecuteStatus.COMPILING) && isHiveServerRestarted) {
         executeRecordService.deleteRecordNode(executeRecord.getSql());
+        executeRecordService.deleteOperationNode(executeRecord.getOperationId());
         return executeNewStatement(req);
       } else {
         return executeNothing(req, record.get(), statement);
@@ -746,11 +745,8 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
   }
 
   private Optional<ApplicationReport> searchAppByJobName(String jobName) {
-    YarnClient yarnClient = new YarnClientImpl();
-    YarnConfiguration yarnConf = new YarnConfiguration();
-    yarnClient.init(yarnConf);
     try {
-      return yarnClient.getApplications().stream()
+      return YarnSingleton.getInstance().getApplications().stream()
           .filter(app -> app.getName().equals(jobName))
           .findFirst();
     } catch (YarnException | IOException e) {

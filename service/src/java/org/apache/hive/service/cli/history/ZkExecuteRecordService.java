@@ -15,7 +15,6 @@ import org.apache.hadoop.hive.ql.lockmgr.zookeeper.CuratorFrameworkSingleton;
 import org.apache.hive.service.ServiceException;
 import org.apache.hive.service.cli.history.exception.ConnectZkException;
 import org.apache.hive.service.cli.history.exception.CreateZkNodeException;
-import org.apache.hive.service.cli.history.exception.DeleteZkNodeException;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.data.Stat;
@@ -179,7 +178,7 @@ public class ZkExecuteRecordService implements ExecuteRecordService {
     try {
       zooKeeperClient.delete().forPath(nodePath);
     } catch (Exception e) {
-      throw new DeleteZkNodeException("Delete record node: " + nodePath + "failed.", e);
+      logger.error("Delete record node: " + nodePath + " failed. " + e.getMessage());
     }
   }
 
