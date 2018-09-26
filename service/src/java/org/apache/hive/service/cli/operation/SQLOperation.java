@@ -63,6 +63,7 @@ import org.apache.hive.service.cli.RowSet;
 import org.apache.hive.service.cli.RowSetFactory;
 import org.apache.hive.service.cli.TableSchema;
 import org.apache.hive.service.cli.history.ExecuteRecord;
+import org.apache.hive.service.cli.history.ExecuteStatus;
 import org.apache.hive.service.cli.history.ZkExecuteRecordService;
 import org.apache.hive.service.cli.history.ZookeeperClient;
 import org.apache.hive.service.cli.history.exception.NotFoundException;
@@ -175,20 +176,24 @@ public class SQLOperation extends ExecuteStatementOperation {
       throw new HiveSQLException("Error running query: " + e.toString(), e);
     }
 
+    updateZookeeperNode();
+    setState(OperationState.FINISHED);
+  }
+
+  private void updateZookeeperNode() {
     String statement = driver.getPlan().getQueryString();
     ZkExecuteRecordService recordService = ZookeeperClient.getInstance();
     Optional<ExecuteRecord> recordOpt = recordService.getExecuteRecordBySql(statement);
     if (recordOpt.isPresent()) {
       ExecuteRecord record = recordOpt.get();
-      record.setStatus(OperationState.FINISHED);
+      record.setStatus(ExecuteStatus.FINISHED);
       record.setQueryId(driver.getPlan().getQueryId());
+      record.setEndTime(System.currentTimeMillis());
       // TODO need to set result hdfs address
       recordService.updateRecordNode(record);
     } else {
       throw new NotFoundException("Execute record cannot be found by statement: " + statement);
     }
-    // TODO update recordOpt status
-    setState(OperationState.FINISHED);
   }
 
   @Override

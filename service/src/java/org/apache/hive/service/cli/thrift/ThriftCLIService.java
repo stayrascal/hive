@@ -32,6 +32,12 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
+import org.apache.hadoop.yarn.api.records.ApplicationReport;
+import org.apache.hadoop.yarn.api.records.YarnApplicationState;
+import org.apache.hadoop.yarn.client.api.YarnClient;
+import org.apache.hadoop.yarn.client.api.impl.YarnClientImpl;
+import org.apache.hadoop.yarn.conf.YarnConfiguration;
+import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.apache.hive.service.AbstractService;
 import org.apache.hive.service.ServiceException;
 import org.apache.hive.service.ServiceUtils;
@@ -52,6 +58,7 @@ import org.apache.hive.service.cli.SessionHandle;
 import org.apache.hive.service.cli.TableSchema;
 import org.apache.hive.service.cli.history.ExecuteRecord;
 import org.apache.hive.service.cli.history.ExecuteRecordService;
+import org.apache.hive.service.cli.history.ExecuteStatus;
 import org.apache.hive.service.cli.history.ZookeeperClient;
 import org.apache.hive.service.cli.history.exception.NotFoundException;
 import org.apache.hive.service.cli.session.SessionManager;
@@ -502,7 +509,7 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
       resp.setOperationHandle(tOperationHandle);
       resp.setStatus(OK_STATUS);
 
-      executeRecord.setStatus(OperationState.RUNNING);
+      executeRecord.setStatus(ExecuteStatus.RUNNING);
       executeRecord.setOperationId(DigestUtils.md5Hex(tOperationHandle.getOperationId().toString()).toUpperCase());
       executeRecordService.updateRecordNode(executeRecord);
       executeRecordService.createOperationNode(executeRecord);
@@ -535,9 +542,8 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
 
     if (record.isPresent()) {
       ExecuteRecord executeRecord = record.get();
-      boolean historyHiveServerIsRunning = true;
-      // TODO check if hiveserver is restart
-      if (executeRecord.getStatus().equals(OperationState.INITIALIZED) && !historyHiveServerIsRunning) {
+      boolean isHiveServerRestarted = executeRecordService.isOriginalServerRestarted(executeRecord);
+      if (executeRecord.getStatus().equals(ExecuteStatus.COMPILING) && isHiveServerRestarted) {
         executeRecordService.deleteRecordNode(executeRecord.getSql());
         return executeNewStatement(req);
       } else {
@@ -660,19 +666,18 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
   public TGetOperationStatusResp GetOperationStatus(TGetOperationStatusReq req) throws TException {
     TGetOperationStatusResp resp = new TGetOperationStatusResp();
     TOperationHandle opHandle = req.getOperationHandle();
-    if (opHandle.getOperationType().equals(OperationType.NOTHING)) {
+    if (opHandle.getOperationType().name().equals(OperationType.NOTHING.name())) {
       String operationId = opHandle.getOperationId().toString();
       Optional<ExecuteRecord> record = executeRecordService.getRecordByOperationId(operationId);
       if (record.isPresent()) {
-        resp.setOperationState(record.get().getStatus().toTOperationState());
+        setOperationState(resp, record.get());
         resp.setStatus(OK_STATUS);
       } else {
         resp.setStatus(HiveSQLException.toTStatus(new NotFoundException("Cannot find any record in zookeeper about operation id: " + operationId)));
       }
     } else {
       try {
-        OperationStatus operationStatus = cliService.getOperationStatus(
-            new OperationHandle(opHandle));
+        OperationStatus operationStatus = cliService.getOperationStatus(new OperationHandle(opHandle));
         resp.setOperationState(operationStatus.getState().toTOperationState());
         HiveSQLException opException = operationStatus.getOperationException();
         if (opException != null) {
@@ -687,6 +692,60 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
       }
     }
     return resp;
+  }
+
+  private void setOperationState(TGetOperationStatusResp resp, ExecuteRecord record) {
+    if (record.getStatus().equals(ExecuteStatus.FINISHED)) {
+      resp.setOperationState(ExecuteStatus.FINISHED.toOperationState().toTOperationState());
+    } else if (record.getStatus().equals(ExecuteStatus.RUNNING)) {
+      setOperationStateWhileJobIsRunning(resp, record);
+    } else {
+      resp.setOperationState(ExecuteStatus.COMPILING.toOperationState().toTOperationState());
+    }
+  }
+
+  private void setOperationStateWhileJobIsRunning(TGetOperationStatusResp resp, ExecuteRecord executeRecord) {
+    boolean isOriginServerRestarted = executeRecordService.isOriginalServerRestarted(executeRecord);
+    if (isOriginServerRestarted) {
+      setOperationStateWhenJobRunningInYarn(resp, executeRecord);
+    } else {
+      resp.setOperationState(ExecuteStatus.RUNNING.toOperationState().toTOperationState());
+    }
+  }
+
+  private void setOperationStateWhenJobRunningInYarn(TGetOperationStatusResp resp, ExecuteRecord executeRecord) {
+    Optional<ApplicationReport> applicationReport = searchAppByJobName(executeRecord.getSql());
+    if (applicationReport.isPresent()) {
+      YarnApplicationState yarnState = applicationReport.get().getYarnApplicationState();
+      if (yarnState.equals(YarnApplicationState.FINISHED)) {
+        resp.setOperationState(OperationState.FINISHED.toTOperationState());
+        executeRecord.setStatus(ExecuteStatus.FINISHED);
+        executeRecord.setEndTime(System.currentTimeMillis());
+        executeRecord.setRetUrl(""); // TODO set rest hdfs address
+        executeRecordService.updateRecordNode(executeRecord);
+      } else if (yarnState.equals(YarnApplicationState.FAILED) || yarnState.equals(YarnApplicationState.KILLED)) {
+        resp.setOperationState(OperationState.ERROR.toTOperationState());
+      } else {
+        resp.setOperationState(OperationState.RUNNING.toTOperationState());
+      }
+    } else {
+      executeRecordService.deleteRecordNode(executeRecord.getSql());
+      resp.setOperationState(OperationState.UNKNOWN.toTOperationState());
+    }
+  }
+
+  private Optional<ApplicationReport> searchAppByJobName(String jobName) {
+    YarnClient yarnClient = new YarnClientImpl();
+    YarnConfiguration yarnConf = new YarnConfiguration();
+    yarnClient.init(yarnConf);
+    try {
+      return yarnClient.getApplications().stream()
+          .filter(app -> app.getName().equals(jobName))
+          .findFirst();
+    } catch (YarnException | IOException e) {
+      LOG.error("Cannot found application with job name: " + jobName);
+      return Optional.empty();
+    }
   }
 
   @Override

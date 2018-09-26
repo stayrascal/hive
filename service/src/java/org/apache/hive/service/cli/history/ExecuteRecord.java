@@ -1,12 +1,10 @@
 package org.apache.hive.service.cli.history;
 
-import org.apache.hive.service.cli.OperationState;
-
 public class ExecuteRecord {
   private String sql;
   private String appId;
   private String queryId;
-  private OperationState status;
+  private ExecuteStatus status;
   private String retUrl;
   private Long startTime;
   private Long endTime;
@@ -37,11 +35,11 @@ public class ExecuteRecord {
     this.queryId = queryId;
   }
 
-  public OperationState getStatus() {
+  public ExecuteStatus getStatus() {
     return status;
   }
 
-  public void setStatus(OperationState status) {
+  public void setStatus(ExecuteStatus status) {
     this.status = status;
   }
 

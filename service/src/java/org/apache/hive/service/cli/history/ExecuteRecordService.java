@@ -17,4 +17,6 @@ public interface ExecuteRecordService {
   void deleteRecordNode(String sqlId);
 
   void createOperationNode(ExecuteRecord record);
+
+  boolean isOriginalServerRestarted(ExecuteRecord record);
 }
