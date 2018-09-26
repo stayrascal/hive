@@ -119,6 +119,14 @@ public class ZkExecuteRecordService implements ExecuteRecordService {
   }
 
   @Override
+  public Optional<ExecuteRecord> getExecuteRecordByMD5Sql(String md5Sql) {
+    return searchNodeData(
+        sqlHistoryRootNamespace,
+        md5Sql,
+        ExecuteRecordFactory::convertByteToRecord).map(obj -> (ExecuteRecord) obj);
+  }
+
+  @Override
   public void createOperationNode(ExecuteRecord record) {
     String pathPrefix = operationRootNamespace + ZOOKEEPER_PATH_SEPARATOR + record.getOperationId();
     try {
@@ -156,9 +164,13 @@ public class ZkExecuteRecordService implements ExecuteRecordService {
   }
 
   @Override
-  public Optional<ExecuteRecord> getRecordByOperationId(String operationId) {
-    return getSqlByOperationId(DigestUtils.md5Hex(operationId).toUpperCase())
-        .map(sql -> getExecuteRecordBySql(sql).get());
+  public Optional<ExecuteRecord> getRecordByOperationId(String md5OperationId) {
+    Optional<String> md5SqlOpt = getSqlByOperationId(md5OperationId);
+    if (md5SqlOpt.isPresent()) {
+      return getExecuteRecordByMD5Sql(md5SqlOpt.get());
+    } else {
+      return Optional.empty();
+    }
   }
 
   @Override
@@ -167,7 +179,7 @@ public class ZkExecuteRecordService implements ExecuteRecordService {
     try {
       zooKeeperClient.delete().forPath(nodePath);
     } catch (Exception e) {
-      throw new DeleteZkNodeException("Delete node: " + nodePath + "failed.", e);
+      throw new DeleteZkNodeException("Delete record node: " + nodePath + "failed.", e);
     }
   }
 
@@ -189,6 +201,16 @@ public class ZkExecuteRecordService implements ExecuteRecordService {
       }
     } catch (Exception e) {
       throw new ConnectZkException("Connect Zookeeper failed of node: " + hiveServerRootNamespce, e);
+    }
+  }
+
+  @Override
+  public void deleteOperationNode(String originalMD5OperationId) {
+    String nodePath = operationRootNamespace + ZOOKEEPER_PATH_SEPARATOR + originalMD5OperationId;
+    try {
+      zooKeeperClient.delete().forPath(nodePath);
+    } catch (Exception e) {
+      logger.error("Delete operation node: " + nodePath + " failed. " + e.getMessage());
     }
   }
 

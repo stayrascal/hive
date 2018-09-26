@@ -521,12 +521,23 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
     return resp;
   }
 
-  public TExecuteStatementResp executeNothing(TExecuteStatementReq req) {
+  public TExecuteStatementResp executeNothing(TExecuteStatementReq req, ExecuteRecord executeRecord, String statement) {
     TExecuteStatementResp resp = new TExecuteStatementResp();
     try {
       SessionHandle sessionHandle = new SessionHandle(req.getSessionHandle());
-      OperationHandle opHandle = cliService.createNothingOperation(sessionHandle);
-      resp.setOperationHandle(opHandle.toTOperationHandle());
+      OperationHandle opHandle = cliService.createNothingOperation(sessionHandle, statement);
+
+      String originalMD5OperationId = executeRecord.getOperationId();
+      if (originalMD5OperationId != null) {
+        executeRecordService.deleteOperationNode(originalMD5OperationId);
+      }
+
+      TOperationHandle tOperationHandle = opHandle.toTOperationHandle();
+      executeRecord.setOperationId(DigestUtils.md5Hex(tOperationHandle.getOperationId().toString()).toUpperCase());
+      executeRecordService.updateRecordNode(executeRecord);
+      executeRecordService.createOperationNode(executeRecord);
+
+      resp.setOperationHandle(tOperationHandle);
       resp.setStatus(OK_STATUS);
     } catch (Exception e) {
       LOG.warn("Error executing statement: ", e);
@@ -547,7 +558,7 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
         executeRecordService.deleteRecordNode(executeRecord.getSql());
         return executeNewStatement(req);
       } else {
-        return executeNothing(req);
+        return executeNothing(req, record.get(), statement);
       }
     } else {
       return executeNewStatement(req);
@@ -667,7 +678,7 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
     TGetOperationStatusResp resp = new TGetOperationStatusResp();
     TOperationHandle opHandle = req.getOperationHandle();
     if (opHandle.getOperationType().name().equals(OperationType.NOTHING.name())) {
-      String operationId = opHandle.getOperationId().toString();
+      String operationId = DigestUtils.md5Hex(opHandle.getOperationId().toString()).toUpperCase();
       Optional<ExecuteRecord> record = executeRecordService.getRecordByOperationId(operationId);
       if (record.isPresent()) {
         setOperationState(resp, record.get());

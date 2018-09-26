@@ -18,6 +18,16 @@
 
 package org.apache.hive.service.cli.session;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
@@ -61,16 +71,6 @@ import org.apache.hive.service.cli.operation.Operation;
 import org.apache.hive.service.cli.operation.OperationManager;
 import org.apache.hive.service.cli.thrift.TProtocolVersion;
 import org.apache.hive.service.server.ThreadWithGarbageCleanup;
-
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * HiveSession
@@ -550,10 +550,10 @@ public class HiveSessionImpl implements HiveSession {
   }
 
   @Override
-  public OperationHandle createNothingOperation() throws HiveSQLException {
+  public OperationHandle createNothingOperation(String statement) throws HiveSQLException {
     acquire(true);
     OperationManager operationManager = getOperationManager();
-    NothingOperation operation = operationManager.newNothingOperation(getSession());
+    NothingOperation operation = operationManager.newNothingOperation(getSession(), statement);
     OperationHandle opHandle = operation.getHandle();
     try {
       operation.run();

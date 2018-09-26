@@ -18,6 +18,12 @@
 
 package org.apache.hive.service.cli.operation;
 
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -36,12 +42,6 @@ import org.apache.hive.service.cli.TableSchema;
 import org.apache.hive.service.cli.session.HiveSession;
 import org.apache.log4j.Appender;
 import org.apache.log4j.Logger;
-
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  * OperationManager.
@@ -145,8 +145,8 @@ public class OperationManager extends AbstractService {
     return operation;
   }
 
-  public NothingOperation newNothingOperation(HiveSession session) {
-    NothingOperation operation = new NothingOperation(session);
+  public NothingOperation newNothingOperation(HiveSession session, String statement) {
+    NothingOperation operation = new NothingOperation(session, statement);
     addOperation(operation);
     return operation;
   }

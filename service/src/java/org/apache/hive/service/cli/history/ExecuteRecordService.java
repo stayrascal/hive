@@ -10,6 +10,8 @@ public interface ExecuteRecordService {
 
   Optional<ExecuteRecord> getExecuteRecordBySql(String sql);
 
+  Optional<ExecuteRecord> getExecuteRecordByMD5Sql(String md5Sql);
+
   Optional<String> getSqlByOperationId(String operationId);
 
   Optional<ExecuteRecord> getRecordByOperationId(String operationId);
@@ -19,4 +21,6 @@ public interface ExecuteRecordService {
   void createOperationNode(ExecuteRecord record);
 
   boolean isOriginalServerRestarted(ExecuteRecord record);
+
+  void deleteOperationNode(String originalMD5OperationId);
 }
