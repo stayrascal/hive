@@ -172,6 +172,7 @@ public class SessionManager extends CompositeService {
               session.closeExpiredOperations();
             }
           }
+          operationManager.closeTerminatedOrphanOperations();
         }
       }
 

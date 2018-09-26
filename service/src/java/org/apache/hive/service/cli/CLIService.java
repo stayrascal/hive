@@ -234,6 +234,14 @@ public class CLIService extends CompositeService implements ICLIService {
   @Override
   public void closeSession(SessionHandle sessionHandle)
       throws HiveSQLException {
+    sessionManager.getSession(sessionHandle).setUnintendedClose(false);
+    sessionManager.closeSession(sessionHandle);
+    LOG.debug(sessionHandle + ": closeSession()");
+  }
+
+  public void unintendedCloseSession(SessionHandle sessionHandle)
+    throws HiveSQLException {
+    sessionManager.getSession(sessionHandle).setUnintendedClose(true);
     sessionManager.closeSession(sessionHandle);
     LOG.debug(sessionHandle + ": closeSession()");
   }

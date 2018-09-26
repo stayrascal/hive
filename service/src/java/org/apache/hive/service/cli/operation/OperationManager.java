@@ -18,12 +18,6 @@
 
 package org.apache.hive.service.cli.operation;
 
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -43,6 +37,14 @@ import org.apache.hive.service.cli.session.HiveSession;
 import org.apache.log4j.Appender;
 import org.apache.log4j.Logger;
 
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 /**
  * OperationManager.
  *
@@ -52,6 +54,8 @@ public class OperationManager extends AbstractService {
 
   private final Map<OperationHandle, Operation> handleToOperation =
       new HashMap<OperationHandle, Operation>();
+
+  private final Set<OperationHandle> orphanedOpHandle = new HashSet<OperationHandle>();
 
   public OperationManager() {
     super(OperationManager.class.getSimpleName());
@@ -174,6 +178,24 @@ public class OperationManager extends AbstractService {
     return handleToOperation.remove(opHandle);
   }
 
+  private synchronized boolean addOrphanedOpHandle(OperationHandle opHandle){
+    return orphanedOpHandle.add(opHandle);
+  }
+
+  private synchronized boolean removeOrphanedOpHandle(OperationHandle opHandle){
+    return orphanedOpHandle.remove(opHandle);
+  }
+
+  private synchronized Operation removeTerminatedOrphanedOperation(OperationHandle operationHandle) {
+    Operation operation = handleToOperation.get(operationHandle);
+    if (operation != null && operation.isTerminal()) {
+      handleToOperation.remove(operationHandle);
+      orphanedOpHandle.remove(operationHandle);
+      return operation;
+    }
+    return null;
+  }
+
   public OperationStatus getOperationStatus(OperationHandle opHandle)
       throws HiveSQLException {
     return getOperation(opHandle).getStatus();
@@ -281,4 +303,38 @@ public class OperationManager extends AbstractService {
     }
     return removed;
   }
+
+  public void handleOrphanOperation(OperationHandle opHandle) {
+    addOrphanedOpHandle(opHandle);
+  }
+
+  /**
+   * close all orphaned operations which is terminated.
+   */
+  public void closeTerminatedOrphanOperations() {
+    OperationHandle[] handles = orphanedOpHandle.toArray(new OperationHandle[0]);
+    if (handles.length <= 0) {
+      return;
+    }
+    List<Operation> removed = new ArrayList<Operation>();
+    for (OperationHandle handle : handles) {
+      Operation operation = removeTerminatedOrphanedOperation(handle);
+      if (operation != null) {
+        LOG.warn("Operation " + handle + " is timed-out and will be closed");
+        removed.add(operation);
+      }
+    }
+    if (!removed.isEmpty()) {
+      for (Operation operation : removed) {
+        try {
+          operation.close();
+        } catch (Exception e) {
+          LOG.warn(
+              "Exception is thrown closing timed-out orphaned operation " + operation.getHandle(),
+              e);
+        }
+      }
+    }
+  }
+
 }
