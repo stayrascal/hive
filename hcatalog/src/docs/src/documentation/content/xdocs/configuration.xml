@@ -157,7 +157,7 @@ ${env.PIG_HOME}/bin/pig
     <td>
 <code>hive.metastore.uris=thrift://localhost:9933,
 hive.metastore.sasl.enabled=false</code></td>
-    <td>Properties to set when running hive. To use it in a cluster with 
+    <td>Properties to set when running hive. To use it in a cluster with
 kerberos security enabled set hive.metastore.sasl.enabled=false and add hive.metastore.execute.setugi=true
 Using localhost in metastore uri does not work with kerberos security.
 </td>
@@ -260,6 +260,18 @@ Using localhost in metastore uri does not work with kerberos security.
     <td><code>604800000</code></td>
     <td>The maximum age of a templeton job</td>
   </tr>
+
+      <tr>
+          <td><strong>templeton.zookeeper.cleanup.finished_job_interval</strong></td>
+          <td><code>600000</code></td>
+          <td>Loop interval for clean up zookeeper finished job data</td>
+      </tr>
+
+      <tr>
+          <td><strong>templeton.zookeeper.cleanup.finished_job_threshold</strong></td>
+          <td><code>600000</code></td>
+          <td>Threshold for clean up zookeeper finished job data</td>
+      </tr>
 
   <tr>
     <td><strong>templeton.kerberos.secret</strong></td>
