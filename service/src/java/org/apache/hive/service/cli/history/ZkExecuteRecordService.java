@@ -8,6 +8,7 @@ import java.nio.charset.Charset;
 import java.util.List;
 
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.lockmgr.zookeeper.CuratorFrameworkSingleton;
@@ -214,6 +215,22 @@ public class ZkExecuteRecordService implements ExecuteRecordService {
       zooKeeperClient.delete().forPath(nodePath);
     } catch (Exception e) {
       logger.error("Delete operation node: " + nodePath + " failed. " + e.getMessage());
+    }
+  }
+
+  @Override
+  public void archiveFinishedNode(String nodeName) {
+    try {
+      byte[] bytes = zooKeeperClient.getData().forPath(finishedRootNamespace);
+      String nodesStr = new String(bytes, Charset.forName("UTF-8"));
+      if (StringUtils.isEmpty(nodesStr)) {
+        nodesStr = nodeName;
+      } else {
+        nodesStr += "," + nodeName;
+      }
+      zooKeeperClient.setData().forPath(finishedRootNamespace, nodesStr.getBytes(Charset.forName("UTF-8")));
+    } catch (Exception e) {
+      logger.error("Archive node: " + nodeName + " failed.");
     }
   }
 

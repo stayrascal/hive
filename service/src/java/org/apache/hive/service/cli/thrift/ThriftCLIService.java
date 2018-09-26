@@ -730,6 +730,7 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
         executeRecord.setEndTime(System.currentTimeMillis());
         executeRecord.setRetUrl(""); // TODO set rest hdfs address
         executeRecordService.updateRecordNode(executeRecord);
+        executeRecordService.archiveFinishedNode(executeRecord.getSql());
       } else if (yarnState.equals(YarnApplicationState.FAILED) || yarnState.equals(YarnApplicationState.KILLED)) {
         executeRecord.setStatus(ExecuteStatus.ERROR);
         executeRecord.setEndTime(System.currentTimeMillis());

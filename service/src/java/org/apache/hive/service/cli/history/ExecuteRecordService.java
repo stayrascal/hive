@@ -21,4 +21,6 @@ public interface ExecuteRecordService {
   boolean isOriginalServerRestartedOrRemoved(ExecuteRecord record);
 
   void deleteOperationNode(String originalMD5OperationId);
+
+  void archiveFinishedNode(String nodeName);
 }

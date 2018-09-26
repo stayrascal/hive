@@ -189,6 +189,7 @@ public class SQLOperation extends ExecuteStatementOperation {
       record.setEndTime(System.currentTimeMillis());
       // TODO need to set result hdfs address
       recordService.updateRecordNode(record);
+      recordService.archiveFinishedNode(record.getSql());
     } else {
       throw new NotFoundException("Execute record cannot be found by statement: " + statement);
     }
