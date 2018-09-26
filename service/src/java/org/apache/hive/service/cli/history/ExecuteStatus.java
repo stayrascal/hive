@@ -5,7 +5,8 @@ import org.apache.hive.service.cli.OperationState;
 public enum ExecuteStatus {
   COMPILING(OperationState.INITIALIZED),
   RUNNING(OperationState.RUNNING),
-  FINISHED(OperationState.FINISHED);
+  FINISHED(OperationState.FINISHED),
+  ERROR(OperationState.ERROR);
 
   private OperationState operationState;
 

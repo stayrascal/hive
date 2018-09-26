@@ -704,12 +704,10 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
   }
 
   private void setOperationState(TGetOperationStatusResp resp, ExecuteRecord record) {
-    if (record.getStatus().equals(ExecuteStatus.FINISHED)) {
-      resp.setOperationState(ExecuteStatus.FINISHED.toOperationState().toTOperationState());
-    } else if (record.getStatus().equals(ExecuteStatus.RUNNING)) {
+    if (record.getStatus().equals(ExecuteStatus.RUNNING)) {
       setOperationStateWhileJobIsRunning(resp, record);
     } else {
-      resp.setOperationState(ExecuteStatus.COMPILING.toOperationState().toTOperationState());
+      resp.setOperationState(record.getStatus().toOperationState().toTOperationState());
     }
   }
 
@@ -733,6 +731,9 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
         executeRecord.setRetUrl(""); // TODO set rest hdfs address
         executeRecordService.updateRecordNode(executeRecord);
       } else if (yarnState.equals(YarnApplicationState.FAILED) || yarnState.equals(YarnApplicationState.KILLED)) {
+        executeRecord.setStatus(ExecuteStatus.ERROR);
+        executeRecord.setEndTime(System.currentTimeMillis());
+        executeRecordService.updateRecordNode(executeRecord);
         resp.setOperationState(OperationState.ERROR.toTOperationState());
       } else {
         resp.setOperationState(OperationState.RUNNING.toTOperationState());
