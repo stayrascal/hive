@@ -550,13 +550,14 @@ public class HiveSessionImpl implements HiveSession {
   }
 
   @Override
-  public OperationHandle createNothingOperation(String statement) throws HiveSQLException {
+  public OperationHandle createNothingOperation(String statement, String resultPath) throws HiveSQLException {
     acquire(true);
     OperationManager operationManager = getOperationManager();
     NothingOperation operation = operationManager.newNothingOperation(getSession(), statement);
     OperationHandle opHandle = operation.getHandle();
     try {
       operation.run();
+      operation.setResultPath(resultPath);
       opHandleSet.add(opHandle);
       return opHandle;
     } catch (HiveSQLException e) {

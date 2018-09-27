@@ -313,6 +313,10 @@ public class Driver implements CommandProcessor {
     return ctx.getResultFilePath();
   }
 
+  public void setResultPath(String resultPath) {
+    ctx.setResultPath(resultPath);
+  }
+
   /**
    * Hold state variables specific to each query being executed, that may not
    * be consistent in the overall SessionState

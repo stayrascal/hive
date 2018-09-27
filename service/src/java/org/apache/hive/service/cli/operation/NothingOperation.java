@@ -108,6 +108,11 @@ public class NothingOperation extends MetadataOperation {
     return resultSchema;
   }
 
+
+  public void setResultPath(String resultPath) {
+    driver.setResultPath(resultPath);
+  }
+
   @Override
   public RowSet getNextRowSet(FetchOrientation orientation, long maxRows) throws HiveSQLException {
     validateDefaultFetchOrientation(orientation);

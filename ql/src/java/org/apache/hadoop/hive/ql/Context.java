@@ -386,8 +386,11 @@ public class Context {
    * @return next available path for map-red intermediate data
    */
   public Path getMRTmpPath() {
-    return new Path(getMRScratchDir(), MR_PREFIX +
-        nextPathId());
+      if (resDir == null) {
+          return new Path(getMRScratchDir(), MR_PREFIX +
+                  nextPathId());
+      }
+      return resDir;
   }
 
   /**
@@ -715,6 +718,10 @@ public class Context {
   }
 
   public String getResultFilePath() {
-    return localScratchDir;
+    return resDir.toString();
   }
+
+    public void setResultPath(String resultPath) {
+        resDir = new Path(resultPath);
+    }
 }

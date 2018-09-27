@@ -263,8 +263,8 @@ public class CLIService extends CompositeService implements ICLIService {
     return opHandle;
   }
 
-  public OperationHandle createNothingOperation(SessionHandle sessionHandle, String statement) throws HiveSQLException {
-    OperationHandle opHandle = sessionManager.getSession(sessionHandle).createNothingOperation(statement);
+  public OperationHandle createNothingOperation(SessionHandle sessionHandle, String statement, String resultPath) throws HiveSQLException {
+    OperationHandle opHandle = sessionManager.getSession(sessionHandle).createNothingOperation(statement, resultPath);
     LOG.debug(sessionHandle + ": createNothingOperation()");
     return opHandle;
   }

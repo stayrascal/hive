@@ -132,7 +132,7 @@ public interface HiveSession extends HiveSessionBase {
   OperationHandle getFunctions(String catalogName, String schemaName,
       String functionName) throws HiveSQLException;
 
-  OperationHandle createNothingOperation(String statement) throws HiveSQLException;
+  OperationHandle createNothingOperation(String statement, String resultPath) throws HiveSQLException;
 
   /**
    * close the session
