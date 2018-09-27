@@ -21,4 +21,8 @@ public class ZookeeperClient {
 
   private ZookeeperClient() {
   }
+
+  public static void startAutoCleanUp(HiveConf hiveConf){
+    new ZooKeeperFinishedJobCleanUp(hiveConf).start();
+  }
 }

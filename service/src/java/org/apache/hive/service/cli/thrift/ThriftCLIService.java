@@ -18,15 +18,6 @@
 
 package org.apache.hive.service.cli.thrift;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-import javax.security.auth.login.LoginException;
-
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -40,24 +31,8 @@ import org.apache.hive.service.ServiceException;
 import org.apache.hive.service.ServiceUtils;
 import org.apache.hive.service.auth.HiveAuthFactory;
 import org.apache.hive.service.auth.TSetIpAddressProcessor;
-import org.apache.hive.service.cli.CLIService;
-import org.apache.hive.service.cli.FetchOrientation;
-import org.apache.hive.service.cli.FetchType;
-import org.apache.hive.service.cli.GetInfoType;
-import org.apache.hive.service.cli.GetInfoValue;
-import org.apache.hive.service.cli.HiveSQLException;
-import org.apache.hive.service.cli.OperationHandle;
-import org.apache.hive.service.cli.OperationState;
-import org.apache.hive.service.cli.OperationStatus;
-import org.apache.hive.service.cli.OperationType;
-import org.apache.hive.service.cli.RowSet;
-import org.apache.hive.service.cli.SessionHandle;
-import org.apache.hive.service.cli.TableSchema;
-import org.apache.hive.service.cli.history.ExecuteRecord;
-import org.apache.hive.service.cli.history.ExecuteRecordService;
-import org.apache.hive.service.cli.history.ExecuteStatus;
-import org.apache.hive.service.cli.history.YarnSingleton;
-import org.apache.hive.service.cli.history.ZookeeperClient;
+import org.apache.hive.service.cli.*;
+import org.apache.hive.service.cli.history.*;
 import org.apache.hive.service.cli.history.exception.NotFoundException;
 import org.apache.hive.service.cli.operation.Operation;
 import org.apache.hive.service.cli.operation.SQLOperation;
@@ -69,6 +44,15 @@ import org.apache.thrift.server.ServerContext;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.server.TServerEventHandler;
 import org.apache.thrift.transport.TTransport;
+
+import javax.security.auth.login.LoginException;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * ThriftCLIService.
@@ -154,6 +138,9 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
   public synchronized void init(HiveConf hiveConf) {
     this.hiveConf = hiveConf;
     executeRecordService = ZookeeperClient.getInstance(hiveConf);
+
+    ZookeeperClient.startAutoCleanUp(hiveConf);
+
     // Initialize common server configs needed in both binary & http modes
     String portString;
     hiveHost = System.getenv("HIVE_SERVER2_THRIFT_BIND_HOST");
