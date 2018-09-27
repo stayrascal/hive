@@ -2,10 +2,15 @@ package org.apache.hive.service.cli.history;
 
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.curator.framework.CuratorFramework;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.lockmgr.zookeeper.CuratorFrameworkSingleton;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,9 +26,13 @@ public class ZooKeeperFinishedJobCleanUp extends Thread {
 
     private static final String FINISHED_RECORD_ID_PATH_PREFIX = "/finishedrecords";
 
+    private static final String HDFS_PATH = "hdfs://localhost:9000/user/hadoop/hello";
+
     private CuratorFramework zooKeeperClient;
 
     private HiveConf hiveConf;
+
+    private FileSystem fileSystem;
 
     private ZkExecuteRecordService zkExecuteRecordService;
 
@@ -34,10 +43,11 @@ public class ZooKeeperFinishedJobCleanUp extends Thread {
     private static final Long ZK_CLEANUP_FINISHED_JOB_OUTDATED_THRESHOLD =
             1000*60*60*24L;
 
-    public ZooKeeperFinishedJobCleanUp(HiveConf hiveConf) {
+    public ZooKeeperFinishedJobCleanUp(HiveConf hiveConf) throws URISyntaxException, IOException {
         this.zooKeeperClient = CuratorFrameworkSingleton.getInstance(hiveConf);
         this.hiveConf = hiveConf;
         this.zkExecuteRecordService = new ZkExecuteRecordService(hiveConf);
+        this.fileSystem = FileSystem.get(new URI(HDFS_PATH), new Configuration());
     }
 
     public void run() {
@@ -53,6 +63,7 @@ public class ZooKeeperFinishedJobCleanUp extends Thread {
                         if(recordNode != null && shouldDelete(recordNode)){
                             deleteOutdatedFinishedNode(node);
                             deletedNodeList.add(node);
+                            deleteResultFromHDFS(recordNode);
                         }
                     }
                     updateFinishedNodeIdList(finishedNodeList, deletedNodeList);
@@ -66,6 +77,13 @@ public class ZooKeeperFinishedJobCleanUp extends Thread {
             } catch (Exception e) {
                 LOG.error("Deleted outdated job failed: " + e.getMessage(), e);
             }
+        }
+    }
+
+    private void deleteResultFromHDFS(ExecuteRecord recordNode) throws IOException {
+        Path filePath = new Path(recordNode.getRetUrl());
+        if(fileSystem.exists(filePath)) {
+            fileSystem.delete(filePath, true);
         }
     }
 
