@@ -714,4 +714,7 @@ public class Context {
     this.cboSucceeded = cboSucceeded;
   }
 
+  public String getResultFilePath() {
+    return localScratchDir;
+  }
 }

@@ -59,6 +59,8 @@ import org.apache.hive.service.cli.history.ExecuteStatus;
 import org.apache.hive.service.cli.history.YarnSingleton;
 import org.apache.hive.service.cli.history.ZookeeperClient;
 import org.apache.hive.service.cli.history.exception.NotFoundException;
+import org.apache.hive.service.cli.operation.Operation;
+import org.apache.hive.service.cli.operation.SQLOperation;
 import org.apache.hive.service.cli.session.SessionManager;
 import org.apache.hive.service.server.HiveServer2;
 import org.apache.thrift.TException;
@@ -506,6 +508,13 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
       TOperationHandle tOperationHandle = operationHandle.toTOperationHandle();
       resp.setOperationHandle(tOperationHandle);
       resp.setStatus(OK_STATUS);
+
+      Operation operation = cliService.getSessionManager()
+              .getOperationManager()
+              .getOperation(new OperationHandle(tOperationHandle));
+      if (operation instanceof SQLOperation) {
+        executeRecord.setRetUrl(((SQLOperation) operation).getResultFilePath());
+      }
 
       executeRecord.setStatus(ExecuteStatus.RUNNING);
       executeRecord.setOperationId(DigestUtils.md5Hex(tOperationHandle.getOperationId().toString()).toUpperCase());

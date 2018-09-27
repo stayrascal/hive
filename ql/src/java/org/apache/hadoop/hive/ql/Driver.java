@@ -309,6 +309,10 @@ public class Driver implements CommandProcessor {
     return compile(command, true);
   }
 
+  public String getResultFilePath() {
+    return ctx.getResultFilePath();
+  }
+
   /**
    * Hold state variables specific to each query being executed, that may not
    * be consistent in the overall SessionState

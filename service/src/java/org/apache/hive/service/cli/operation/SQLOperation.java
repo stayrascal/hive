@@ -493,4 +493,9 @@ public class SQLOperation extends ExecuteStatementOperation {
     }
     return sqlOperationConf;
   }
+
+  public String getResultFilePath() {
+    return driver.getResultFilePath();
+  }
+
 }
