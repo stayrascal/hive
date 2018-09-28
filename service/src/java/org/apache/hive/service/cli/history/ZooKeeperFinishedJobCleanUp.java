@@ -43,11 +43,11 @@ public class ZooKeeperFinishedJobCleanUp extends Thread {
         while (true) {
             try {
                 try {
-                    List<String> finishedNodeList = getFinishedJobIds();
-                    for (String node : finishedNodeList) {
+                    List<String> finishedJobIds = getFinishedJobIds();
+                    for (String node : finishedJobIds) {
                         ExecuteRecord recordNode =
                                 zkExecuteRecordService.getExecuteRecordByMD5Sql(node);
-                        if (recordNode != null && nodeShouldBeDeleted(recordNode)) {
+                        if (recordNode != null && shouldBeDeleted(recordNode)) {
                             deleteOutdatedFinishedNode(node);
                             deleteFinishedRecord(node);
                             deleteResultFromHDFS(recordNode);
@@ -67,9 +67,20 @@ public class ZooKeeperFinishedJobCleanUp extends Thread {
 
     private void deleteFinishedRecord(String node) throws Exception {
         String nodePath = buildNodePath(node, hiveConf.getVar(HiveConf.ConfVars.FINISHED_EXECUTION_ZOOKEEPER_NAMESPACE));
-        LOG.info("start to delete node " + nodePath);
-        zooKeeperClient.delete().guaranteed().deletingChildrenIfNeeded().forPath(nodePath);
-        LOG.info("finish delete node " + nodePath);
+        deleteZooKeeperNode(nodePath);
+    }
+
+    private void deleteOutdatedFinishedNode(String node) throws Exception {
+        String nodePath = buildNodePath(node, hiveConf.getVar(HiveConf.ConfVars.HIVE_SQL_HISTORY_ZOOKEEPER_NAMESPACE));
+        deleteZooKeeperNode(nodePath);
+    }
+
+    private void deleteZooKeeperNode(String nodePath) throws Exception {
+        if(zooKeeperClient.checkExists().forPath(nodePath) != null) {
+            LOG.info("start to delete node " + nodePath);
+            zooKeeperClient.delete().guaranteed().deletingChildrenIfNeeded().forPath(nodePath);
+            LOG.info("finish delete node " + nodePath);
+        }
     }
 
     private void deleteResultFromHDFS(ExecuteRecord recordNode) throws IOException {
@@ -83,19 +94,12 @@ public class ZooKeeperFinishedJobCleanUp extends Thread {
         }
     }
 
-    private void deleteOutdatedFinishedNode(final String node) throws Exception {
-        String nodePath = buildNodePath(node, hiveConf.getVar(HiveConf.ConfVars.HIVE_SQL_HISTORY_ZOOKEEPER_NAMESPACE));
-        LOG.info("start to delete node " + nodePath);
-        zooKeeperClient.delete().guaranteed().deletingChildrenIfNeeded().forPath(nodePath);
-        LOG.info("finish delete node " + nodePath);
-    }
-
     private String buildNodePath(String node, String path) {
         return ZOOKEEPER_PATH_SEPARATOR + path
                 + ZOOKEEPER_PATH_SEPARATOR + node;
     }
 
-    private boolean nodeShouldBeDeleted(ExecuteRecord recordNode) {
+    private boolean shouldBeDeleted(ExecuteRecord recordNode) {
         if (recordNode.getEndTime() == null) {
             return false;
         }
