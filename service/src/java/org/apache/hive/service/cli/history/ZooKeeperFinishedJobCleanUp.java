@@ -8,8 +8,6 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.lockmgr.zookeeper.CuratorFrameworkSingleton;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Date;
 import java.util.List;
 
@@ -18,15 +16,13 @@ import static org.apache.hadoop.hive.ql.util.ZooKeeperHiveHelper.ZOOKEEPER_PATH_
 
 public class ZooKeeperFinishedJobCleanUp extends Thread {
 
-    private static final String HDFS_PATH = "hdfs://localhost:9000/user/hadoop/hello";
-
     private CuratorFramework zooKeeperClient;
 
     private HiveConf hiveConf;
 
-    private FileSystem fileSystem;
-
     private ZkExecuteRecordService zkExecuteRecordService;
+
+    private Configuration configuration;
 
     private static final Long ZK_CLEANUP_FINISHED_JOB_INTERVAL =
             10000L;
@@ -35,11 +31,11 @@ public class ZooKeeperFinishedJobCleanUp extends Thread {
     private static final Long ZK_CLEANUP_FINISHED_JOB_OUTDATED_THRESHOLD =
             1000 * 60 * 60 * 24L;
 
-    public ZooKeeperFinishedJobCleanUp(HiveConf hiveConf) throws URISyntaxException, IOException {
+    public ZooKeeperFinishedJobCleanUp(HiveConf hiveConf) {
         this.zooKeeperClient = CuratorFrameworkSingleton.getInstance(hiveConf);
         this.hiveConf = hiveConf;
         this.zkExecuteRecordService = new ZkExecuteRecordService(hiveConf);
-        this.fileSystem = FileSystem.get(new URI(HDFS_PATH), new Configuration());
+        this.configuration = new Configuration();
     }
 
     public void run() {
@@ -78,6 +74,7 @@ public class ZooKeeperFinishedJobCleanUp extends Thread {
 
     private void deleteResultFromHDFS(ExecuteRecord recordNode) throws IOException {
         Path filePath = new Path(recordNode.getRetUrl());
+        FileSystem fileSystem = filePath.getFileSystem(configuration);
         if (fileSystem.exists(filePath)) {
             LOG.info("start to delete HDFS file: " + recordNode.getRetUrl());
             fileSystem.delete(filePath, true);
