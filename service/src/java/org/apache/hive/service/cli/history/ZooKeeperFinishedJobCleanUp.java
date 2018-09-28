@@ -26,7 +26,7 @@ public class ZooKeeperFinishedJobCleanUp extends Thread {
 
     private static final String FINISHED_RECORD_ID_PATH_PREFIX = "/finishedrecords";
 
-    private static final String HDFS_PATH = "HDFS://localhost:9000/user/hadoop/hello";
+    private static final String HDFS_PATH = "hdfs://localhost:9000/user/hadoop/hello";
 
     private CuratorFramework zooKeeperClient;
 
