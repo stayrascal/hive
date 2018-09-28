@@ -7,10 +7,6 @@
 package org.apache.hive.service.cli.thrift;
 
 
-import java.util.Map;
-import java.util.HashMap;
-import org.apache.thrift.TEnum;
-
 public enum TOperationType implements org.apache.thrift.TEnum {
   EXECUTE_STATEMENT(0),
   GET_TYPE_INFO(1),
@@ -20,7 +16,8 @@ public enum TOperationType implements org.apache.thrift.TEnum {
   GET_TABLE_TYPES(5),
   GET_COLUMNS(6),
   GET_FUNCTIONS(7),
-  UNKNOWN(8);
+  UNKNOWN(8),
+  NOTHING(9);
 
   private final int value;
 
@@ -59,6 +56,8 @@ public enum TOperationType implements org.apache.thrift.TEnum {
         return GET_FUNCTIONS;
       case 8:
         return UNKNOWN;
+      case 9:
+        return NOTHING;
       default:
         return null;
     }

@@ -25,7 +25,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-
 import javax.security.auth.login.LoginException;
 
 import org.apache.commons.logging.Log;
@@ -269,6 +268,12 @@ public class CLIService extends CompositeService implements ICLIService {
     OperationHandle opHandle = sessionManager.getSession(sessionHandle)
         .executeStatement(statement, confOverlay);
     LOG.debug(sessionHandle + ": executeStatement()");
+    return opHandle;
+  }
+
+  public OperationHandle createNothingOperation(SessionHandle sessionHandle, String statement, String tblDir) throws HiveSQLException {
+    OperationHandle opHandle = sessionManager.getSession(sessionHandle).createNothingOperation(statement, tblDir);
+    LOG.debug(sessionHandle + ": createNothingOperation()");
     return opHandle;
   }
 

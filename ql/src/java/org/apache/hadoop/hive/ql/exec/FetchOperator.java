@@ -141,6 +141,10 @@ public class FetchOperator implements Serializable {
     initialize();
   }
 
+  public void reInitialize() throws HiveException {
+    initialize();
+  }
+
   private void initialize() throws HiveException {
     if (isStatReader) {
       outputOI = work.getStatRowOI();

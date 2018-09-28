@@ -66,6 +66,7 @@ import org.apache.hive.service.cli.operation.GetSchemasOperation;
 import org.apache.hive.service.cli.operation.GetTableTypesOperation;
 import org.apache.hive.service.cli.operation.GetTypeInfoOperation;
 import org.apache.hive.service.cli.operation.MetadataOperation;
+import org.apache.hive.service.cli.operation.NothingOperation;
 import org.apache.hive.service.cli.operation.Operation;
 import org.apache.hive.service.cli.operation.OperationManager;
 import org.apache.hive.service.cli.thrift.TProtocolVersion;
@@ -540,6 +541,25 @@ public class HiveSessionImpl implements HiveSession {
     OperationHandle opHandle = operation.getHandle();
     try {
       operation.run();
+      opHandleSet.add(opHandle);
+      return opHandle;
+    } catch (HiveSQLException e) {
+      operationManager.closeOperation(opHandle);
+      throw e;
+    } finally {
+      release(true);
+    }
+  }
+
+  @Override
+  public OperationHandle createNothingOperation(String statement, String tblDir) throws HiveSQLException {
+    acquire(true);
+    OperationManager operationManager = getOperationManager();
+    NothingOperation operation = operationManager.newNothingOperation(getSession(), statement);
+    OperationHandle opHandle = operation.getHandle();
+    try {
+      operation.run();
+      operation.setTblDir(tblDir);
       opHandleSet.add(opHandle);
       return opHandle;
     } catch (HiveSQLException e) {

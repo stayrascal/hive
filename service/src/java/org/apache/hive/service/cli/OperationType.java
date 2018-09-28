@@ -34,7 +34,8 @@ public enum OperationType {
   GET_TABLES(TOperationType.GET_TABLES),
   GET_TABLE_TYPES(TOperationType.GET_TABLE_TYPES),
   GET_COLUMNS(TOperationType.GET_COLUMNS),
-  GET_FUNCTIONS(TOperationType.GET_FUNCTIONS);
+  GET_FUNCTIONS(TOperationType.GET_FUNCTIONS),
+  NOTHING(TOperationType.NOTHING);
 
   private TOperationType tOperationType;
 

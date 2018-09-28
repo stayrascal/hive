@@ -34,9 +34,9 @@ import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 import javax.security.auth.login.LoginException;
 
+import com.google.common.base.Joiner;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -53,8 +53,6 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.Shell;
 import org.apache.hive.common.HiveCompat;
-
-import com.google.common.base.Joiner;
 
 /**
  * Hive Configuration.
@@ -1764,6 +1762,12 @@ public class HiveConf extends Configuration {
         "hive.zookeeper.quorum in their connection string."),
     HIVE_SERVER2_ZOOKEEPER_NAMESPACE("hive.server2.zookeeper.namespace", "hiveserver2",
         "The parent node in ZooKeeper used by HiveServer2 when supporting dynamic service discovery."),
+    FINISHED_EXECUTION_ZOOKEEPER_NAMESPACE("finished.execution.zookeeper.namespace", "finishedrecords",
+        "The finished execution record root node, used for clean up by scheduler task."),
+    HIVE_SQL_HISTORY_ZOOKEEPER_NAMESPACE("beeline.sql.zookeeper.namespace", "beelinesql",
+            "The parent node in ZooKeeper used by record sql history when supporting dynamic service discovery."),
+    OPERATION_ZOOKEEPER_NAMESPACE("operation.zookeeper.namespace", "operations",
+            "The parent node in ZooKeeper used by record operation id when supporting dynamic service discovery."),
     // HiveServer2 global init file location
     HIVE_SERVER2_GLOBAL_INIT_FILE_LOCATION("hive.server2.global.init.file.location", "${env:HIVE_CONF_DIR}",
         "Either the location of a HS2 global init file or a directory containing a .hiverc file. If the \n" +

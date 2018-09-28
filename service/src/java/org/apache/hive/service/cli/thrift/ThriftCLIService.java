@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,35 +18,24 @@
 
 package org.apache.hive.service.cli.thrift;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-
-import javax.security.auth.login.LoginException;
-
+import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
+import org.apache.hadoop.yarn.api.records.ApplicationReport;
+import org.apache.hadoop.yarn.api.records.YarnApplicationState;
+import org.apache.hadoop.yarn.exceptions.YarnException;
 import org.apache.hive.service.AbstractService;
 import org.apache.hive.service.ServiceException;
 import org.apache.hive.service.ServiceUtils;
 import org.apache.hive.service.auth.HiveAuthFactory;
 import org.apache.hive.service.auth.TSetIpAddressProcessor;
-import org.apache.hive.service.cli.CLIService;
-import org.apache.hive.service.cli.FetchOrientation;
-import org.apache.hive.service.cli.FetchType;
-import org.apache.hive.service.cli.GetInfoType;
-import org.apache.hive.service.cli.GetInfoValue;
-import org.apache.hive.service.cli.HiveSQLException;
-import org.apache.hive.service.cli.OperationHandle;
-import org.apache.hive.service.cli.OperationStatus;
-import org.apache.hive.service.cli.RowSet;
-import org.apache.hive.service.cli.SessionHandle;
-import org.apache.hive.service.cli.TableSchema;
+import org.apache.hive.service.cli.*;
+import org.apache.hive.service.cli.history.*;
+import org.apache.hive.service.cli.history.exception.NotFoundException;
+import org.apache.hive.service.cli.operation.Operation;
+import org.apache.hive.service.cli.operation.SQLOperation;
 import org.apache.hive.service.cli.session.SessionManager;
 import org.apache.hive.service.server.HiveServer2;
 import org.apache.thrift.TException;
@@ -56,9 +45,17 @@ import org.apache.thrift.server.TServer;
 import org.apache.thrift.server.TServerEventHandler;
 import org.apache.thrift.transport.TTransport;
 
+import javax.security.auth.login.LoginException;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
 /**
  * ThriftCLIService.
- *
  */
 public abstract class ThriftCLIService extends AbstractService implements TCLIService.Iface, Runnable {
 
@@ -85,6 +82,7 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
 
   protected TServerEventHandler serverEventHandler;
   protected ThreadLocal<ServerContext> currentServerContext;
+  private ExecuteRecordService executeRecordService;
 
   static class ThriftCLIServerContext implements ServerContext {
     private SessionHandle sessionHandle = null;
@@ -111,8 +109,8 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
 
       @Override
       public void deleteContext(ServerContext serverContext,
-          TProtocol input, TProtocol output) {
-        ThriftCLIServerContext context = (ThriftCLIServerContext)serverContext;
+                                TProtocol input, TProtocol output) {
+        ThriftCLIServerContext context = (ThriftCLIServerContext) serverContext;
         SessionHandle sessionHandle = context.getSessionHandle();
         if (sessionHandle != null) {
           LOG.info("Session disconnected without closing properly, close it now");
@@ -130,7 +128,7 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
 
       @Override
       public void processContext(ServerContext serverContext,
-          TTransport input, TTransport output) {
+                                 TTransport input, TTransport output) {
         currentServerContext.set(serverContext);
       }
     };
@@ -139,6 +137,10 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
   @Override
   public synchronized void init(HiveConf hiveConf) {
     this.hiveConf = hiveConf;
+    executeRecordService = ZookeeperClient.getInstance(hiveConf);
+
+    ZookeeperClient.startAutoCleanUp(hiveConf);
+
     // Initialize common server configs needed in both binary & http modes
     String portString;
     hiveHost = System.getenv("HIVE_SERVER2_THRIFT_BIND_HOST");
@@ -194,11 +196,11 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
   @Override
   public synchronized void stop() {
     if (isStarted && !isEmbedded) {
-      if(server != null) {
+      if (server != null) {
         server.stop();
         LOG.info("Thrift server has stopped");
       }
-      if((httpServer != null) && httpServer.isStarted()) {
+      if ((httpServer != null) && httpServer.isStarted()) {
         try {
           httpServer.stop();
           LOG.info("Http server has stopped");
@@ -300,7 +302,7 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
       resp.setConfiguration(new HashMap<String, String>());
       resp.setStatus(OK_STATUS);
       ThriftCLIServerContext context =
-        (ThriftCLIServerContext)currentServerContext.get();
+          (ThriftCLIServerContext) currentServerContext.get();
       if (context != null) {
         context.setSessionHandle(sessionHandle);
       }
@@ -318,8 +320,7 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
     if (cliService.getHiveConf().getVar(
         ConfVars.HIVE_SERVER2_TRANSPORT_MODE).equalsIgnoreCase("http")) {
       clientIpAddress = SessionManager.getIpAddress();
-    }
-    else {
+    } else {
       // Kerberos
       if (isKerberosAuthMode()) {
         clientIpAddress = hiveAuthFactory.getIpAddress();
@@ -339,6 +340,7 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
    * 2. If hive.server2.allow.user.substitution = true: the username of the end user,
    * that the connecting user is trying to proxy for.
    * This includes a check whether the connecting user is allowed to proxy for the end user.
+   *
    * @param req
    * @return
    * @throws HiveSQLException
@@ -382,6 +384,7 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
 
   /**
    * Create a session handle
+   *
    * @param req
    * @param res
    * @return
@@ -448,7 +451,7 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
       cliService.closeSession(sessionHandle);
       resp.setStatus(OK_STATUS);
       ThriftCLIServerContext context =
-        (ThriftCLIServerContext)currentServerContext.get();
+          (ThriftCLIServerContext) currentServerContext.get();
       if (context != null) {
         context.setSessionHandle(null);
       }
@@ -475,24 +478,86 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
     return resp;
   }
 
-  @Override
-  public TExecuteStatementResp ExecuteStatement(TExecuteStatementReq req) throws TException {
+  public TExecuteStatementResp executeNewStatement(TExecuteStatementReq req) {
     TExecuteStatementResp resp = new TExecuteStatementResp();
     try {
       SessionHandle sessionHandle = new SessionHandle(req.getSessionHandle());
       String statement = req.getStatement();
+
+      ExecuteRecord executeRecord = executeRecordService.createRecordNode(statement);
+
       Map<String, String> confOverlay = req.getConfOverlay();
       Boolean runAsync = req.isRunAsync();
       OperationHandle operationHandle = runAsync ?
           cliService.executeStatementAsync(sessionHandle, statement, confOverlay)
           : cliService.executeStatement(sessionHandle, statement, confOverlay);
-          resp.setOperationHandle(operationHandle.toTOperationHandle());
-          resp.setStatus(OK_STATUS);
+
+      TOperationHandle tOperationHandle = operationHandle.toTOperationHandle();
+      resp.setOperationHandle(tOperationHandle);
+      resp.setStatus(OK_STATUS);
+
+      Operation operation = cliService.getSessionManager()
+              .getOperationManager()
+              .getOperation(new OperationHandle(tOperationHandle));
+      if (operation instanceof SQLOperation) {
+        executeRecord.setRetUrl(((SQLOperation) operation).getResultFilePath());
+        executeRecord.setTblDir(((SQLOperation) operation).getTblDir());
+      }
+
+      executeRecord.setStatus(ExecuteStatus.RUNNING);
+      executeRecord.setOperationId(DigestUtils.md5Hex(tOperationHandle.getOperationId().toString()).toUpperCase());
+      executeRecordService.updateRecordNode(executeRecord);
+      executeRecordService.createOperationNode(executeRecord);
+
     } catch (Exception e) {
       LOG.warn("Error executing statement: ", e);
       resp.setStatus(HiveSQLException.toTStatus(e));
     }
     return resp;
+  }
+
+  public TExecuteStatementResp executeNothing(TExecuteStatementReq req, ExecuteRecord executeRecord, String statement) {
+    TExecuteStatementResp resp = new TExecuteStatementResp();
+    try {
+      SessionHandle sessionHandle = new SessionHandle(req.getSessionHandle());
+      OperationHandle opHandle = cliService.createNothingOperation(sessionHandle, statement, executeRecord.getTblDir());
+
+      String originalMD5OperationId = executeRecord.getOperationId();
+      if (originalMD5OperationId != null) {
+        executeRecordService.deleteOperationNode(originalMD5OperationId);
+      }
+
+      TOperationHandle tOperationHandle = opHandle.toTOperationHandle();
+      executeRecord.setOperationId(DigestUtils.md5Hex(tOperationHandle.getOperationId().toString()).toUpperCase());
+      executeRecordService.updateRecordNode(executeRecord);
+      executeRecordService.createOperationNode(executeRecord);
+
+      resp.setOperationHandle(tOperationHandle);
+      resp.setStatus(OK_STATUS);
+    } catch (Exception e) {
+      LOG.warn("Error executing statement: ", e);
+      resp.setStatus(HiveSQLException.toTStatus(e));
+    }
+    return resp;
+  }
+
+  @Override
+  public TExecuteStatementResp ExecuteStatement(TExecuteStatementReq req) throws TException {
+    String statement = req.getStatement();
+    ExecuteRecord record = executeRecordService.getExecuteRecordBySql(statement);
+
+    if (record != null) {
+      boolean isHiveServerRestarted = executeRecordService.isOriginalServerRestartedOrRemoved(record);
+      if (record.getStatus().equals(ExecuteStatus.COMPILING) && isHiveServerRestarted) {
+        executeRecordService.deleteRecordNode(record.getSql());
+        executeRecordService.deleteOperationNode(record.getOperationId());
+        return executeNewStatement(req);
+      } else {
+        return executeNothing(req, record, statement);
+      }
+    } else {
+      return executeNewStatement(req);
+    }
   }
 
   @Override
@@ -606,22 +671,89 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
   @Override
   public TGetOperationStatusResp GetOperationStatus(TGetOperationStatusReq req) throws TException {
     TGetOperationStatusResp resp = new TGetOperationStatusResp();
-    try {
-      OperationStatus operationStatus = cliService.getOperationStatus(
-          new OperationHandle(req.getOperationHandle()));
-      resp.setOperationState(operationStatus.getState().toTOperationState());
-      HiveSQLException opException = operationStatus.getOperationException();
-      if (opException != null) {
-        resp.setSqlState(opException.getSQLState());
-        resp.setErrorCode(opException.getErrorCode());
-        resp.setErrorMessage(opException.getMessage());
+    TOperationHandle opHandle = req.getOperationHandle();
+    if (opHandle.getOperationType().name().equals(OperationType.NOTHING.name())) {
+      String operationId = DigestUtils.md5Hex(opHandle.getOperationId().toString()).toUpperCase();
+      ExecuteRecord record = executeRecordService.getRecordByOperationId(operationId);
+      if (record != null) {
+        setOperationState(resp, record);
+        resp.setStatus(OK_STATUS);
+      } else {
+        resp.setStatus(HiveSQLException.toTStatus(new NotFoundException("Cannot find any record in zookeeper about operation id: " + operationId)));
       }
-      resp.setStatus(OK_STATUS);
-    } catch (Exception e) {
-      LOG.warn("Error getting operation status: ", e);
-      resp.setStatus(HiveSQLException.toTStatus(e));
+    } else {
+      try {
+        OperationStatus operationStatus = cliService.getOperationStatus(new OperationHandle(opHandle));
+        resp.setOperationState(operationStatus.getState().toTOperationState());
+        HiveSQLException opException = operationStatus.getOperationException();
+        if (opException != null) {
+          resp.setSqlState(opException.getSQLState());
+          resp.setErrorCode(opException.getErrorCode());
+          resp.setErrorMessage(opException.getMessage());
+        }
+        resp.setStatus(OK_STATUS);
+      } catch (Exception e) {
+        LOG.warn("Error getting operation status: ", e);
+        resp.setStatus(HiveSQLException.toTStatus(e));
+      }
     }
     return resp;
+  }
+
+  private void setOperationState(TGetOperationStatusResp resp, ExecuteRecord record) {
+    if (record.getStatus().equals(ExecuteStatus.RUNNING)) {
+      setOperationStateWhileJobIsRunning(resp, record);
+    } else {
+      resp.setOperationState(record.getStatus().toOperationState().toTOperationState());
+    }
+  }
+
+  private void setOperationStateWhileJobIsRunning(TGetOperationStatusResp resp, ExecuteRecord executeRecord) {
+    boolean isOriginServerRestarted = executeRecordService.isOriginalServerRestartedOrRemoved(executeRecord);
+    if (isOriginServerRestarted) {
+      setOperationStateWhenJobRunningInYarn(resp, executeRecord);
+    } else {
+      resp.setOperationState(ExecuteStatus.RUNNING.toOperationState().toTOperationState());
+    }
+  }
+
+  private void setOperationStateWhenJobRunningInYarn(TGetOperationStatusResp resp, ExecuteRecord executeRecord) {
+    ApplicationReport applicationReport = searchAppByJobName(executeRecord);
+    if (applicationReport != null) {
+      YarnApplicationState yarnState = applicationReport.getYarnApplicationState();
+      if (yarnState.equals(YarnApplicationState.FINISHED)) {
+        resp.setOperationState(OperationState.FINISHED.toTOperationState());
+        executeRecord.setStatus(ExecuteStatus.FINISHED);
+        executeRecord.setEndTime(System.currentTimeMillis());
+        executeRecord.setRetUrl(""); // TODO set rest hdfs address
+        executeRecordService.updateRecordNode(executeRecord);
+        executeRecordService.archiveFinishedNode(executeRecord.getSql());
+      } else if (yarnState.equals(YarnApplicationState.FAILED) || yarnState.equals(YarnApplicationState.KILLED)) {
+        executeRecord.setStatus(ExecuteStatus.ERROR);
+        executeRecord.setEndTime(System.currentTimeMillis());
+        executeRecordService.updateRecordNode(executeRecord);
+        resp.setOperationState(OperationState.ERROR.toTOperationState());
+      } else {
+        resp.setOperationState(OperationState.RUNNING.toTOperationState());
+      }
+    } else {
+      executeRecordService.deleteRecordNode(executeRecord.getSql());
+      resp.setOperationState(OperationState.UNKNOWN.toTOperationState());
+    }
+  }
+
+  private ApplicationReport searchAppByJobName(ExecuteRecord record) {
+    try {
+      List<ApplicationReport> applications = YarnSingleton.getInstance().getApplications();
+      for (ApplicationReport app : applications) {
+        if (app.getName().equals(record.getSql())) {
+          return app;
+        }
+      }
+    } catch (YarnException | IOException e) {
+      LOG.error("Cannot found application with job name: " + record.getSql());
+    }
+    return null;
   }
 
   @Override
@@ -689,6 +821,7 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
 
   /**
    * If the proxy user name is provided then check privileges to substitute the user.
+   *
    * @param realUser
    * @param sessionConf
    * @param ipAddress
@@ -696,7 +829,7 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
    * @throws HiveSQLException
    */
   private String getProxyUser(String realUser, Map<String, String> sessionConf,
-      String ipAddress) throws HiveSQLException {
+                              String ipAddress) throws HiveSQLException {
     String proxyUser = null;
     // Http transport mode.
     // We set the thread local proxy username, in ThriftHttpServlet.

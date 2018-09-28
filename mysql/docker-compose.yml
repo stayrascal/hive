@@ -1,0 +1,17 @@
+version: '2'
+
+services:
+  hive:
+    image: mysql:8.0.12
+    container_name: hive
+    restart: always
+    user: "1000:50"
+    environment:
+      - MYSQL_ROOT_PASSWORD=hive
+      - MYSQL_DATABASE=hivedb
+      - MYSQL_USER=hive
+      - MYSQL_PASSWORD=hive
+    ports:
+      - "3307:3306"
+    volumes:
+      - ~/workspace/data/hive:/var/lib/mysql

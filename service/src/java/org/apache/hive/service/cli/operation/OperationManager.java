@@ -149,6 +149,12 @@ public class OperationManager extends AbstractService {
     return operation;
   }
 
+  public NothingOperation newNothingOperation(HiveSession session, String statement) {
+    NothingOperation operation = new NothingOperation(session, statement);
+    addOperation(operation);
+    return operation;
+  }
+
   public Operation getOperation(OperationHandle operationHandle) throws HiveSQLException {
     Operation operation = getOperationInternal(operationHandle);
     if (operation == null) {
