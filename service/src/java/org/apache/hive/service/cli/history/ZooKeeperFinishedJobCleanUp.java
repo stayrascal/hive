@@ -1,6 +1,9 @@
 package org.apache.hive.service.cli.history;
 
 import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.recipes.leader.LeaderSelector;
+import org.apache.curator.framework.recipes.leader.LeaderSelectorListener;
+import org.apache.curator.framework.state.ConnectionState;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -31,7 +34,7 @@ public class ZooKeeperFinishedJobCleanUp extends Thread {
     private static final Long ZK_CLEANUP_FINISHED_JOB_OUTDATED_THRESHOLD =
             1000 * 60 * 60 * 24L;
 
-    public ZooKeeperFinishedJobCleanUp(HiveConf hiveConf) {
+    ZooKeeperFinishedJobCleanUp(HiveConf hiveConf) {
         this.zooKeeperClient = CuratorFrameworkSingleton.getInstance(hiveConf);
         this.hiveConf = hiveConf;
         this.zkExecuteRecordService = new ZkExecuteRecordService(hiveConf);
@@ -40,27 +43,44 @@ public class ZooKeeperFinishedJobCleanUp extends Thread {
 
     public void run() {
 
-        while (true) {
-            try {
-                try {
-                    List<String> finishedJobIds = getFinishedJobIds();
-                    for (String node : finishedJobIds) {
-                        ExecuteRecord recordNode =
-                                zkExecuteRecordService.getExecuteRecordByMD5Sql(node);
-                        if (recordNode != null && shouldBeDeleted(recordNode)) {
-                            deleteOutdatedFinishedNode(node);
-                            deleteFinishedRecord(node);
-                            deleteResultFromHDFS(recordNode);
-                        }
-                    }
-                } catch (Exception e) {
-                    LOG.error("Deleted outdated job failed: " + e.getMessage());
+        try {
+
+            LeaderSelector leaderSelector = new LeaderSelector(zooKeeperClient, "/leader", new LeaderSelectorListener() {
+
+                @Override
+                public void takeLeadership(CuratorFramework client) throws Exception {
+
+                    System.out.println(":I am leader.");
+                    doCleanUpJob();
+                    Thread.sleep(ZK_CLEANUP_FINISHED_JOB_INTERVAL);
+
                 }
 
-                Thread.sleep(ZK_CLEANUP_FINISHED_JOB_INTERVAL);
+                @Override
+                public void stateChanged(CuratorFramework curatorFramework, ConnectionState connectionState) {
 
-            } catch (Exception e) {
-                LOG.error("Deleted outdated job failed: " + e.getMessage(), e);
+                }
+
+            });
+
+            leaderSelector.autoRequeue();
+            leaderSelector.start();
+
+        } catch (Exception e) {
+            LOG.error("Deleted outdated job failed: " + e.getMessage(), e);
+        }
+    }
+
+    private void doCleanUpJob() throws Exception {
+        List<String> finishedJobIds = getFinishedJobIds();
+        System.out.println(finishedJobIds);
+        for (String node : finishedJobIds) {
+            ExecuteRecord recordNode =
+                    zkExecuteRecordService.getExecuteRecordByMD5Sql(node);
+            if (recordNode != null && shouldBeDeleted(recordNode)) {
+                deleteOutdatedFinishedNode(node);
+                deleteFinishedRecord(node);
+                deleteResultFromHDFS(recordNode);
             }
         }
     }
@@ -76,7 +96,7 @@ public class ZooKeeperFinishedJobCleanUp extends Thread {
     }
 
     private void deleteZooKeeperNode(String nodePath) throws Exception {
-        if(zooKeeperClient.checkExists().forPath(nodePath) != null) {
+        if (zooKeeperClient.checkExists().forPath(nodePath) != null) {
             LOG.info("start to delete node " + nodePath);
             zooKeeperClient.delete().guaranteed().deletingChildrenIfNeeded().forPath(nodePath);
             LOG.info("finish delete node " + nodePath);
