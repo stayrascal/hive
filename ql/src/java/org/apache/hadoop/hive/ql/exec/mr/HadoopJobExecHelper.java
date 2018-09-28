@@ -175,7 +175,8 @@ public class HadoopJobExecHelper {
       Runtime.getRuntime().addShutdownHook(new Thread() {
         @Override
         public void run() {
-          killRunningJobs();
+          //killRunningJobs();
+          LOG.info("Did not kill running jobs after receiving the ctrl-c command.");
         }
       });
   }

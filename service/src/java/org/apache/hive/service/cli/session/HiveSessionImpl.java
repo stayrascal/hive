@@ -71,6 +71,7 @@ import org.apache.hive.service.cli.operation.OperationManager;
 import org.apache.hive.service.cli.thrift.TProtocolVersion;
 import org.apache.hive.service.server.ThreadWithGarbageCleanup;
 
+
 /**
  * HiveSession
  *
@@ -744,6 +745,9 @@ public class HiveSessionImpl implements HiveSession {
   }
 
   public void setUnintendedClose(boolean unintendedClose) {
+    if (sessionState != null) {
+      sessionState.setUnintendedClose(unintendedClose);
+    }
     this.unintendedClose = unintendedClose;
   }
 }

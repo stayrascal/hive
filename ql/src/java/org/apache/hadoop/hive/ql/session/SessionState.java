@@ -275,6 +275,17 @@ public class SessionState {
   private ResourceMaps resourceMaps;
 
   private DependencyResolver dependencyResolver;
+
+  private boolean unintendedClose = false;
+
+  public boolean isUnintendedClose() {
+    return unintendedClose;
+  }
+
+  public void setUnintendedClose(boolean unintendedClose) {
+    this.unintendedClose = unintendedClose;
+  }
+
   /**
    * Get the lineage state stored in this session.
    *
@@ -571,7 +582,7 @@ public class SessionState {
     String sessionId = getSessionId();
     // 4. HDFS session path
     hdfsSessionPath = new Path(hdfsScratchDirURIString, sessionId);
-    createPath(conf, hdfsSessionPath, scratchDirPermission, false, true);
+    createPath(conf, hdfsSessionPath, scratchDirPermission, false, false);
     conf.set(HDFS_SESSION_PATH_KEY, hdfsSessionPath.toUri().toString());
     // 5. Local session path
     localSessionPath = new Path(HiveConf.getVar(conf, HiveConf.ConfVars.LOCALSCRATCHDIR), sessionId);
@@ -579,7 +590,7 @@ public class SessionState {
     conf.set(LOCAL_SESSION_PATH_KEY, localSessionPath.toUri().toString());
     // 6. HDFS temp table space
     hdfsTmpTableSpace = new Path(hdfsSessionPath, TMP_PREFIX);
-    createPath(conf, hdfsTmpTableSpace, scratchDirPermission, false, true);
+    createPath(conf, hdfsTmpTableSpace, scratchDirPermission, false, false);
     conf.set(TMP_TABLE_SPACE_KEY, hdfsTmpTableSpace.toUri().toString());
   }
 
@@ -693,7 +704,7 @@ public class SessionState {
   }
 
   private void dropSessionPaths(Configuration conf) throws IOException {
-    if (hdfsSessionPath != null) {
+    if (hdfsSessionPath != null && !unintendedClose) {
       hdfsSessionPath.getFileSystem(conf).delete(hdfsSessionPath, true);
     }
     if (localSessionPath != null) {
