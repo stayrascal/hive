@@ -1817,4 +1817,11 @@ public class Driver implements CommandProcessor {
     this.operationId = opId;
   }
 
+  public void setTblDir(String tblDir) {
+    plan.setTblDir(tblDir);
+  }
+
+  public String getTblDir() {
+    return plan.getTblDir();
+  }
 }

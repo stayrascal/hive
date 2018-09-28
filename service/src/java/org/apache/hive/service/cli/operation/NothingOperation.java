@@ -230,4 +230,8 @@ public class NothingOperation extends MetadataOperation {
     }
     return serde;
   }
+
+  public void setTblDir(String tblDir) {
+    driver.setTblDir(tblDir);
+  }
 }

@@ -498,4 +498,11 @@ public class SQLOperation extends ExecuteStatementOperation {
     return driver.getResultFilePath();
   }
 
+  public String getTblDir() {
+    return driver.getTblDir();
+  }
+
+  public void setTblDir(String tblDir) {
+    driver.setTblDir(tblDir);
+  }
 }

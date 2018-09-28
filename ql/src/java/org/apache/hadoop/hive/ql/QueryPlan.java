@@ -789,4 +789,12 @@ public class QueryPlan implements Serializable {
   public String getOperationName() {
     return operationName;
   }
+
+  public void setTblDir(String tblDir) {
+    fetchTask.setTblDir(tblDir);
+  }
+
+  public String getTblDir() {
+    return fetchTask.getTblDir();
+  }
 }

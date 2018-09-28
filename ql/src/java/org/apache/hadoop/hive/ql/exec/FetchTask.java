@@ -24,6 +24,7 @@ import java.util.List;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.CommandNeedRetryException;
 import org.apache.hadoop.hive.ql.DriverContext;
@@ -179,6 +180,19 @@ public class FetchTask extends Task<FetchWork> implements Serializable {
   public void clearFetch() throws HiveException {
     if (fetch != null) {
       fetch.clearFetchContext();
+    }
+  }
+
+  public String getTblDir() {
+    return work.getTblDir().toString();
+  }
+
+  public void setTblDir(String tblDir) {
+    work.setTblDir(new Path(tblDir));
+    try {
+      fetch.reInitialize();
+    } catch (HiveException e) {
+      throw new RuntimeException("reInitialize failed.");
     }
   }
 }

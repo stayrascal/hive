@@ -6,6 +6,7 @@ public class ExecuteRecord {
   private String queryId;
   private ExecuteStatus status;
   private String retUrl;
+  private String tblDir;
   private Long startTime;
   private Long endTime;
   private String operationId;
@@ -81,5 +82,13 @@ public class ExecuteRecord {
 
   public void setHostName(String hostName) {
     this.hostName = hostName;
+  }
+
+  public String getTblDir() {
+    return tblDir;
+  }
+
+  public void setTblDir(String tblDir) {
+    this.tblDir = tblDir;
   }
 }

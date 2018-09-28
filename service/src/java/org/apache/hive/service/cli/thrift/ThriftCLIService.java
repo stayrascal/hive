@@ -501,6 +501,7 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
               .getOperation(new OperationHandle(tOperationHandle));
       if (operation instanceof SQLOperation) {
         executeRecord.setRetUrl(((SQLOperation) operation).getResultFilePath());
+        executeRecord.setTblDir(((SQLOperation) operation).getTblDir());
       }
 
       executeRecord.setStatus(ExecuteStatus.RUNNING);
@@ -519,7 +520,7 @@ public abstract class ThriftCLIService extends AbstractService implements TCLISe
     TExecuteStatementResp resp = new TExecuteStatementResp();
     try {
       SessionHandle sessionHandle = new SessionHandle(req.getSessionHandle());
-      OperationHandle opHandle = cliService.createNothingOperation(sessionHandle, statement, executeRecord.getRetUrl());
+      OperationHandle opHandle = cliService.createNothingOperation(sessionHandle, statement, executeRecord.getTblDir());
 
       String originalMD5OperationId = executeRecord.getOperationId();
       if (originalMD5OperationId != null) {
