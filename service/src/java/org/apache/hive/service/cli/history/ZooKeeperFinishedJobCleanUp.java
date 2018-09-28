@@ -50,7 +50,6 @@ public class ZooKeeperFinishedJobCleanUp extends Thread {
                 @Override
                 public void takeLeadership(CuratorFramework client) throws Exception {
 
-                    System.out.println(":I am leader.");
                     doCleanUpJob();
                     Thread.sleep(ZK_CLEANUP_FINISHED_JOB_INTERVAL);
 
@@ -73,7 +72,6 @@ public class ZooKeeperFinishedJobCleanUp extends Thread {
 
     private void doCleanUpJob() throws Exception {
         List<String> finishedJobIds = getFinishedJobIds();
-        System.out.println(finishedJobIds);
         for (String node : finishedJobIds) {
             ExecuteRecord recordNode =
                     zkExecuteRecordService.getExecuteRecordByMD5Sql(node);
