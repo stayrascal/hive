@@ -319,4 +319,8 @@ public abstract class Operation {
     }
     return ex;
   }
+
+  public boolean isTerminal() {
+    return state.isTerminal();
+  }
 }

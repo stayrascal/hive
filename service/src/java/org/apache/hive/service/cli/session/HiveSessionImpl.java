@@ -72,6 +72,7 @@ import org.apache.hive.service.cli.operation.OperationManager;
 import org.apache.hive.service.cli.thrift.TProtocolVersion;
 import org.apache.hive.service.server.ThreadWithGarbageCleanup;
 
+
 /**
  * HiveSession
  *
@@ -93,6 +94,7 @@ public class HiveSessionImpl implements HiveSession {
   private File sessionLogDir;
   private volatile long lastAccessTime;
   private volatile long lastIdleTime;
+  private boolean unintendedClose = false;
 
   public HiveSessionImpl(TProtocolVersion protocol, String username, String password,
       HiveConf serverhiveConf, String ipAddress) {
@@ -572,9 +574,15 @@ public class HiveSessionImpl implements HiveSession {
   public void close() throws HiveSQLException {
     try {
       acquire(true);
-      // Iterate through the opHandles and close their operations
-      for (OperationHandle opHandle : opHandleSet) {
-        operationManager.closeOperation(opHandle);
+      if (!unintendedClose) {
+        // Iterate through the opHandles and close their operations
+        for (OperationHandle opHandle : opHandleSet) {
+          operationManager.closeOperation(opHandle);
+        }
+      } else {
+        for (OperationHandle opHandle : opHandleSet) {
+          operationManager.handleOrphanOperation(opHandle);
+        }
       }
       opHandleSet.clear();
       // Cleanup session log directory.
@@ -750,5 +758,16 @@ public class HiveSessionImpl implements HiveSession {
   // extract the real user from the given token string
   private String getUserFromToken(HiveAuthFactory authFactory, String tokenStr) throws HiveSQLException {
     return authFactory.getUserFromToken(tokenStr);
+  }
+
+  public boolean isUnintendedClose() {
+    return unintendedClose;
+  }
+
+  public void setUnintendedClose(boolean unintendedClose) {
+    if (sessionState != null) {
+      sessionState.setUnintendedClose(unintendedClose);
+    }
+    this.unintendedClose = unintendedClose;
   }
 }

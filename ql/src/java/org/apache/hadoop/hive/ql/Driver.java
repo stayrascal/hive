@@ -398,7 +398,7 @@ public class Driver implements CommandProcessor {
       ctx = new Context(conf);
       ctx.setTryCount(getTryCount());
       ctx.setCmd(command);
-      ctx.setHDFSCleanup(true);
+      ctx.setHDFSCleanup(false);
 
       perfLogger.PerfLogBegin(CLASS_NAME, PerfLogger.PARSE);
       ParseDriver pd = new ParseDriver();
@@ -1394,7 +1394,7 @@ public class Driver implements CommandProcessor {
       DriverContext driverCxt = new DriverContext(ctx);
       driverCxt.prepare(plan);
 
-      ctx.setHDFSCleanup(true);
+      ctx.setHDFSCleanup(false);
 
       this.driverCxt = driverCxt; // for canceling the query (should be bound to session?)
 

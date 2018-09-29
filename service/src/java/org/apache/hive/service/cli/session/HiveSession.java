@@ -162,4 +162,9 @@ public interface HiveSession extends HiveSessionBase {
   void closeExpiredOperations();
 
   long getNoOperationTime();
+
+  /**
+   * keep operation executing while closing the session
+   */
+  void setUnintendedClose(boolean unintendedClose);
 }
