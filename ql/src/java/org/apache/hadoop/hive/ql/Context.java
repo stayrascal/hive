@@ -467,24 +467,24 @@ public class Context {
   }
 
   public void clear() throws IOException {
-    if (resDir != null) {
-      try {
-        FileSystem fs = resDir.getFileSystem(conf);
-        fs.delete(resDir, true);
-      } catch (IOException e) {
-        LOG.info("Context clear error: " + StringUtils.stringifyException(e));
-      }
-    }
-
-    if (resFile != null) {
-      try {
-        FileSystem fs = resFile.getFileSystem(conf);
-        fs.delete(resFile, false);
-      } catch (IOException e) {
-        LOG.info("Context clear error: " + StringUtils.stringifyException(e));
-      }
-    }
-    removeScratchDir();
+//    if (resDir != null) {
+//      try {
+//        FileSystem fs = resDir.getFileSystem(conf);
+//        fs.delete(resDir, true);
+//      } catch (IOException e) {
+//        LOG.info("Context clear error: " + StringUtils.stringifyException(e));
+//      }
+//    }
+//
+//    if (resFile != null) {
+//      try {
+//        FileSystem fs = resFile.getFileSystem(conf);
+//        fs.delete(resFile, false);
+//      } catch (IOException e) {
+//        LOG.info("Context clear error: " + StringUtils.stringifyException(e));
+//      }
+//    }
+//    removeScratchDir();
     originalTracker = null;
     setNeedLockMgr(false);
   }
